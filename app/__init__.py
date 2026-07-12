@@ -31,7 +31,14 @@ def create_app(config_class=None):
 
     @app.route("/health")
     def health():
-        return jsonify(status="ok"), 200
+        try:
+            db.session.execute(db.text("SELECT 1"))
+            db_status = "ok"
+            status_code = 200
+        except Exception:
+            db_status = "unavailable"
+            status_code = 503
+        return jsonify(status="ok", database=db_status), status_code
 
     return app
 

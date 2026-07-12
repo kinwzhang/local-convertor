@@ -17,7 +17,8 @@ def serve_subscription(token):
 
     orch = RefreshOrchestrator(current_app._get_current_object())
 
-    if not orch.is_fresh(provider.id):
+    was_fresh = orch.is_fresh(provider.id)
+    if not was_fresh:
         orch.refresh(provider.id, trigger="request")
 
     vs = VersionStore(
@@ -36,5 +37,14 @@ def serve_subscription(token):
     resp.content_type = "text/plain; charset=utf-8"
     resp.headers["ETag"] = f'"{content_hash}"'
     resp.headers["Cache-Control"] = "no-cache"
+
+    if provider.last_success_at:
+        resp.headers["Last-Modified"] = provider.last_success_at.strftime(
+            "%a, %d %b %Y %H:%M:%S GMT"
+        )
+
+    if not was_fresh and provider.last_error:
+        resp.headers["Warning"] = '299 - "Stale data served due to fetch failure"'
+        resp.headers["X-Subscription-Stale"] = "true"
 
     return resp

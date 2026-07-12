@@ -14,6 +14,7 @@ from app.repositories.provider_repo import (
 )
 from app.services.fetcher import ProviderFetcher, FetchError
 from app.services.version_store import VersionStore
+from app.routes.events import publish_event
 
 logger = logging.getLogger(__name__)
 
@@ -62,9 +63,25 @@ class RefreshOrchestrator:
             run = create_update_run(provider_id, trigger)
             run_id = run.id
 
+            publish_event({
+                "provider_id": provider_id,
+                "run_id": run_id,
+                "stage": "querying",
+                "message": "Fetching from provider",
+                "status": "running",
+            })
+
             try:
                 update_run_stage(run, "querying", "Fetching from provider")
                 fetch_result = self.fetcher.fetch(provider.source_url)
+
+                publish_event({
+                    "provider_id": provider_id,
+                    "run_id": run_id,
+                    "stage": "received",
+                    "message": f"Got {len(fetch_result.content)} bytes",
+                    "status": "running",
+                })
 
                 update_run_stage(run, "received", f"Got {len(fetch_result.content)} bytes")
 
@@ -74,14 +91,38 @@ class RefreshOrchestrator:
                 if current_raw_hash == new_raw_hash:
                     update_run_stage(run, "comparing", "Content unchanged")
                     provider.last_check_at = datetime.now(timezone.utc)
+                    provider.last_success_at = datetime.now(timezone.utc)
                     db.session.commit()
+                    publish_event({
+                        "provider_id": provider_id,
+                        "run_id": run_id,
+                        "stage": "comparing",
+                        "message": "Content unchanged",
+                        "status": "success",
+                    })
                     complete_update_run(run, "success", "Content unchanged")
                     return run_id
+
+                publish_event({
+                    "provider_id": provider_id,
+                    "run_id": run_id,
+                    "stage": "converting",
+                    "message": "Converting to share links",
+                    "status": "running",
+                })
 
                 update_run_stage(run, "converting", "Converting to share links")
                 from app.converter.clash import convert_clash_yaml
 
                 conversion = convert_clash_yaml(fetch_result.content)
+
+                publish_event({
+                    "provider_id": provider_id,
+                    "run_id": run_id,
+                    "stage": "storing",
+                    "message": f"Storing {conversion.proxy_count} nodes",
+                    "status": "running",
+                })
 
                 update_run_stage(run, "storing", f"Storing {conversion.proxy_count} nodes")
                 self.version_store.store_version(
@@ -101,6 +142,15 @@ class RefreshOrchestrator:
                     run, "success",
                     f"Converted {conversion.proxy_count} nodes"
                 )
+
+                publish_event({
+                    "provider_id": provider_id,
+                    "run_id": run_id,
+                    "stage": "finished",
+                    "message": f"Converted {conversion.proxy_count} nodes",
+                    "status": "success",
+                })
+
                 return run_id
 
             except Exception as e:
@@ -109,6 +159,13 @@ class RefreshOrchestrator:
                 provider.last_error = str(e)
                 db.session.commit()
                 complete_update_run(run, "failure", str(e), error_details=str(e))
+                publish_event({
+                    "provider_id": provider_id,
+                    "run_id": run_id,
+                    "stage": "failed",
+                    "message": str(e),
+                    "status": "failure",
+                })
                 return run_id
 
     def is_fresh(self, provider_id):

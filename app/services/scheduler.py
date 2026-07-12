@@ -12,6 +12,11 @@ logger = logging.getLogger(__name__)
 _scheduler = None
 _app = None
 
+WEEKDAY_MAP = {
+    0: "mon", 1: "tue", 2: "wed", 3: "thu",
+    4: "fri", 5: "sat", 6: "sun",
+}
+
 
 def _scheduled_refresh(provider_id):
     if _app is None:
@@ -25,10 +30,19 @@ def _scheduled_refresh(provider_id):
             logger.exception("Scheduled refresh failed for provider %d", provider_id)
 
 
+def _get_timezone():
+    if _app is not None:
+        return _app.config.get("TIMEZONE", "Asia/Hong_Kong")
+    return "Asia/Hong_Kong"
+
+
 def _build_trigger(schedule):
     stype = schedule.get("type", "disabled")
     if stype == "disabled":
         return None
+
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo(_get_timezone())
 
     hour, minute = 0, 0
     time_str = schedule.get("time_of_day")
@@ -38,15 +52,17 @@ def _build_trigger(schedule):
         minute = int(parts[1])
 
     if stype == "daily":
-        return CronTrigger(hour=hour, minute=minute)
+        return CronTrigger(hour=hour, minute=minute, timezone=tz)
 
     if stype == "weekly":
         dow = schedule.get("day_of_week", 0)
-        return CronTrigger(day_of_week=dow, hour=hour, minute=minute)
+        if isinstance(dow, int):
+            dow = WEEKDAY_MAP.get(dow, "mon")
+        return CronTrigger(day_of_week=dow, hour=hour, minute=minute, timezone=tz)
 
     if stype == "monthly":
         dom = schedule.get("day_of_month", 1)
-        return CronTrigger(day=dom, hour=hour, minute=minute)
+        return CronTrigger(day=dom, hour=hour, minute=minute, timezone=tz)
 
     if stype == "interval":
         hours = schedule.get("interval_hours", 24)
@@ -90,7 +106,11 @@ def remove_provider_schedule(provider_id):
 def init_scheduler(app):
     global _scheduler, _app
     _app = app
-    _scheduler = BackgroundScheduler()
+    from apscheduler.events import EVENT_JOB_ERROR
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo(app.config.get("TIMEZONE", "Asia/Hong_Kong"))
+    _scheduler = BackgroundScheduler(timezone=tz)
     _scheduler.start()
 
     with app.app_context():

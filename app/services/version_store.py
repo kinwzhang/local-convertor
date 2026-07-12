@@ -41,19 +41,31 @@ class VersionStore:
         converted_path = os.path.join(pdir, f"{next_seq}_converted.txt")
 
         self._write_atomic(raw_path, raw_bytes)
-        self._write_atomic(converted_path, converted_bytes)
+        try:
+            self._write_atomic(converted_path, converted_bytes)
+        except BaseException:
+            if os.path.exists(raw_path):
+                os.unlink(raw_path)
+            raise
 
         node_count = converted_bytes.strip().count(b"\n") + (1 if converted_bytes.strip() else 0)
 
-        version = create_version(
-            provider_id=provider_id,
-            sequence=next_seq,
-            raw_hash=raw_hash,
-            converted_hash=converted_hash,
-            raw_path=raw_path,
-            converted_path=converted_path,
-            node_count=node_count,
-        )
+        try:
+            version = create_version(
+                provider_id=provider_id,
+                sequence=next_seq,
+                raw_hash=raw_hash,
+                converted_hash=converted_hash,
+                raw_path=raw_path,
+                converted_path=converted_path,
+                node_count=node_count,
+            )
+        except BaseException:
+            if os.path.exists(raw_path):
+                os.unlink(raw_path)
+            if os.path.exists(converted_path):
+                os.unlink(converted_path)
+            raise
 
         self._prune(provider_id)
         return version

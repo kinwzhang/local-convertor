@@ -6,7 +6,7 @@ from unittest.mock import patch, MagicMock
 from app.extensions import db
 from app.models.provider import Provider, UpdateRun
 from app.repositories.provider_repo import create_provider, get_current_version
-from app.services.updater import RefreshOrchestrator
+from app.services.updater import RefreshOrchestrator, _get_provider_lock
 from app.services.fetcher import FetchError
 
 
@@ -95,26 +95,32 @@ def test_concurrent_refresh_dedup(app):
     with app.app_context():
         p = create_provider("Dedup", "https://example.com/clash.yaml", {"type": "disabled"})
         orch = _make_orchestrator(app)
-        blocking_event = threading.Event()
+        provider_id = p.id
         second_result = [None]
+        hold_event = threading.Event()
+        release_event = threading.Event()
 
-        def slow_fetch(url):
-            blocking_event.wait(timeout=5)
-            result = MagicMock()
-            result.content = SAMPLE_YAML
-            result.content_type = "text/yaml"
-            result.status_code = 200
-            return result
+        def do_refresh_held(provider_id, trigger="manual"):
+            lock = _get_provider_lock(provider_id)
+            if not lock.acquire(blocking=False):
+                return None
+            try:
+                hold_event.set()
+                release_event.wait(timeout=5)
+                return 12345
+            finally:
+                lock.release()
 
-        def do_second_refresh():
-            second_result[0] = orch.refresh(p.id)
+        with patch.object(orch, "_do_refresh", side_effect=do_refresh_held):
+            def do_second():
+                with app.app_context():
+                    second_result[0] = orch.refresh(provider_id)
 
-        with patch.object(orch.fetcher, "fetch", side_effect=slow_fetch):
-            t = threading.Thread(target=do_second_refresh)
+            t = threading.Thread(target=do_second)
             t.start()
-            time.sleep(0.1)
-            orch.refresh(p.id)
-            blocking_event.set()
+            hold_event.wait(timeout=5)
+            orch.refresh(provider_id)
+            release_event.set()
             t.join(timeout=5)
 
     assert second_result[0] is None

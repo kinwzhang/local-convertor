@@ -19,4 +19,4 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"
 
-CMD ["gunicorn", "-w", "1", "-b", "0.0.0.0:5000", "main:app"]
+CMD ["/bin/sh", "-c", "flask db upgrade && exec gunicorn -w 1 -b 0.0.0.0:5000 main:app"]
