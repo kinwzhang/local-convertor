@@ -1,0 +1,15 @@
+.git
+.gitignore
+.venv
+.idea
+__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+data/
+tests/
+requirements/
+documentation/
+external_ref/
+*.md
+.dockerignore

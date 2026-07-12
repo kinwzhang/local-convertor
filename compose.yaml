@@ -1,0 +1,16 @@
+services:
+  converter:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - app-data:/data
+    environment:
+      - SECRET_KEY=change-me-in-production
+      - DATA_DIR=/data
+      - PUBLIC_BASE_URL=http://localhost:5000
+      - TIMEZONE=Asia/Hong_Kong
+    restart: unless-stopped
+
+volumes:
+  app-data:

@@ -1,0 +1,6 @@
+[submodule "external_ref/urlclash-converter"]
+	path = external_ref/urlclash-converter
+	url = https://github.com/kinwzhang/urlclash-converter.git
+[submodule "external_ref/openwrt-daede"]
+	path = external_ref/openwrt-daede
+	url = https://github.com/kinwzhang/openwrt-daede.git
