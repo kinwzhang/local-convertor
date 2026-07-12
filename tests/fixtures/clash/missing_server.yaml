@@ -1,0 +1,6 @@
+proxies:
+  - name: "no-server"
+    type: ss
+    port: 8388
+    cipher: aes-256-gcm
+    password: secret

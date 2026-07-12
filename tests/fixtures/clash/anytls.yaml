@@ -1,0 +1,11 @@
+proxies:
+  - name: "anytls-basic"
+    type: anytls
+    server: 1.2.3.4
+    port: 443
+    password: "anytls-pass"
+    sni: anytls.example.com
+    alpn:
+      - h2
+    client-fingerprint: chrome
+    skip-cert-verify: true

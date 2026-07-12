@@ -1,0 +1,1 @@
+http://user:pass@1.2.3.4:443?tls=1&skip-cert-verify=1&fingerprint=chrome#https-basic

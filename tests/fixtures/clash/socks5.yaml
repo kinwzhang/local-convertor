@@ -1,0 +1,7 @@
+proxies:
+  - name: "socks-basic"
+    type: socks5
+    server: 1.2.3.4
+    port: 1080
+    username: user
+    password: pass

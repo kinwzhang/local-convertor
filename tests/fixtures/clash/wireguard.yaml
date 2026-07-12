@@ -1,0 +1,13 @@
+proxies:
+  - name: "wg-basic"
+    type: wireguard
+    server: 1.2.3.4
+    port: 51820
+    private-key: PRIVKEY0000000000000000000000000000000000=
+    public-key: PUBKEY0000000000000000000000000000000000=
+    ip: 10.0.0.2
+    ipv6: fd00::2
+    allowed-ips:
+      - 0.0.0.0/0
+      - "::/0"
+    mtu: 1420

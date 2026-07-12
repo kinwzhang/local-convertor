@@ -1,0 +1,10 @@
+proxies:
+  - name: "ssr-basic"
+    type: ssr
+    server: 1.2.3.4
+    port: 8388
+    cipher: aes-256-cfb
+    password: "ssr-pass"
+    protocol: origin
+    obfs: plain
+    obfs-param: obfs.example.com

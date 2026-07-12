@@ -1,0 +1,7 @@
+proxies:
+  - name: "测试节点🚀"
+    type: ss
+    server: ss.example.com
+    port: 8388
+    cipher: chacha20-ietf-poly1305
+    password: "p@ssw0rd"

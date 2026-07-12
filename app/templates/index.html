@@ -3,10 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Local Clash Converter</title>
+    <title>Local Clash Subscription Converter</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
 </head>
 <body>
-    <h1>Local Clash Subscription Converter</h1>
-    <div id="app">Loading...</div>
+    <header>
+        <h1>Local Clash Subscription Converter</h1>
+        <p class="subtitle">Manage providers, schedules, and live update logs.</p>
+    </header>
+    <main>
+        <section id="provider-section">
+            <h2>Providers</h2>
+            <table id="provider-table">
+                <thead>
+                    <tr>
+                        <th>Provider</th>
+                        <th>Clash link</th>
+                        <th>Generated URL</th>
+                        <th>Auto-update</th>
+                        <th>Last status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="provider-rows"></tbody>
+                <tfoot>
+                    <tr id="new-row">
+                        <td><input type="text" id="new-name" placeholder="new provider" maxlength="128"></td>
+                        <td><input type="url" id="new-url" placeholder="https://example.com/clash.yaml"></td>
+                        <td class="muted">(auto)</td>
+                        <td>
+                            <select id="new-schedule-type" class="schedule-type">
+                                <option value="disabled" selected>disabled</option>
+                                <option value="monthly">monthly</option>
+                                <option value="weekly">weekly</option>
+                                <option value="daily">daily</option>
+                                <option value="interval">interval (hours)</option>
+                            </select>
+                            <span class="schedule-extra" data-when="monthly">
+                                day <input type="number" min="1" max="31" id="new-day-of-month" value="1">
+                                at <input type="time" id="new-time-monthly" value="03:00">
+                            </span>
+                            <span class="schedule-extra" data-when="weekly">
+                                weekday
+                                <select id="new-day-of-week">
+                                    <option value="0">Sun</option>
+                                    <option value="1">Mon</option>
+                                    <option value="2">Tue</option>
+                                    <option value="3">Wed</option>
+                                    <option value="4">Thu</option>
+                                    <option value="5">Fri</option>
+                                    <option value="6">Sat</option>
+                                </select>
+                                at <input type="time" id="new-time-weekly" value="03:00">
+                            </span>
+                            <span class="schedule-extra" data-when="daily">
+                                at <input type="time" id="new-time-daily" value="03:00">
+                            </span>
+                            <span class="schedule-extra" data-when="interval">
+                                every <input type="number" min="1" max="168" id="new-interval-hours" value="6"> hours
+                            </span>
+                        </td>
+                        <td class="muted">(new)</td>
+                        <td>
+                            <button type="button" id="new-save">Save</button>
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+            <p id="form-error" class="error" hidden></p>
+        </section>
+
+        <section id="log-section">
+            <h2>Live Update Log</h2>
+            <div id="log-status" class="muted">Connecting…</div>
+            <pre id="log-box" aria-live="polite"></pre>
+        </section>
+    </main>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>

@@ -1,0 +1,5 @@
+proxies:
+  - name: "broken
+    type: ss
+    server: [invalid
+    port: notanumber

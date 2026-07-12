@@ -1,0 +1,12 @@
+proxies:
+  - name: "trojan-ws"
+    type: trojan
+    server: cdn.example.com
+    port: 443
+    password: "trojan-pass"
+    network: ws
+    sni: cdn.example.com
+    ws-opts:
+      path: /tw
+      headers:
+        Host: cdn.example.com

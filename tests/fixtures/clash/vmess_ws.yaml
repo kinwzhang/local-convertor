@@ -1,0 +1,19 @@
+proxies:
+  - name: "vmess-ws"
+    type: vmess
+    server: cdn.example.com
+    port: 443
+    uuid: 11111111-1111-1111-1111-111111111111
+    alterId: 0
+    cipher: auto
+    network: ws
+    tls: true
+    servername: cdn.example.com
+    alpn:
+      - h2
+      - http/1.1
+    client-fingerprint: chrome
+    ws-opts:
+      path: /ray
+      headers:
+        Host: cdn.example.com

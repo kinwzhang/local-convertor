@@ -1,0 +1,1 @@
+trojan://trojan-pass@cdn.example.com:443?type=ws&sni=cdn.example.com&host=cdn.example.com&path=%2Ftw#trojan-ws

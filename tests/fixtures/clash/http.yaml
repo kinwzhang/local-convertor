@@ -1,0 +1,7 @@
+proxies:
+  - name: "http-basic"
+    type: http
+    server: 1.2.3.4
+    port: 8080
+    username: user
+    password: pass

@@ -1,0 +1,1 @@
+vless://00000000-0000-0000-0000-000000000002@cdn.example.com:443?type=ws&encryption=none&security=reality&sni=www.example.com&fp=chrome&pbk=PUBKEY&sid=AB&path=%2Fws&host=www.example.com#vless-reality

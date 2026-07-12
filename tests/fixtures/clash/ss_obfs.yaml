@@ -1,0 +1,11 @@
+proxies:
+  - name: "ss-obfs"
+    type: ss
+    server: 1.2.3.4
+    port: 8388
+    cipher: aes-128-gcm
+    password: "abc123"
+    plugin: obfs
+    plugin-opts:
+      mode: http
+      host: obfs.example.com

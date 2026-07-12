@@ -1,0 +1,1 @@
+anytls://anytls-pass@1.2.3.4:443?sni=anytls.example.com&alpn=h2&client-fingerprint=chrome&allowInsecure=1#anytls-basic

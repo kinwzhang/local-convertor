@@ -1,0 +1,10 @@
+proxies:
+  - name: "hysteria-basic"
+    type: hysteria
+    server: 1.2.3.4
+    port: 36712
+    auth-str: "hy-pass"
+    sni: hy.example.com
+    up: "50"
+    down: "100"
+    protocol: udp

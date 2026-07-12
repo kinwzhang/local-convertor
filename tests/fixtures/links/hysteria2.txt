@@ -1,0 +1,1 @@
+hysteria2://hy2-pass@1.2.3.4:443?sni=hy2.example.com&obfs=salamander&obfs-password=op&insecure=1&alpn=h3#hysteria2-basic

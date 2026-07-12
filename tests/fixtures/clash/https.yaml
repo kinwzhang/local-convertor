@@ -1,0 +1,10 @@
+proxies:
+  - name: "https-basic"
+    type: http
+    server: 1.2.3.4
+    port: 443
+    username: user
+    password: pass
+    tls: true
+    skip-cert-verify: true
+    fingerprint: chrome

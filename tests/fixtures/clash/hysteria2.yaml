@@ -1,0 +1,12 @@
+proxies:
+  - name: "hysteria2-basic"
+    type: hysteria2
+    server: 1.2.3.4
+    port: 443
+    password: "hy2-pass"
+    sni: hy2.example.com
+    obfs: salamander
+    obfs-password: "op"
+    skip-cert-verify: true
+    alpn:
+      - h3

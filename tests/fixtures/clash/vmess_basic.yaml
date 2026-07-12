@@ -1,0 +1,9 @@
+proxies:
+  - name: "vmess-basic"
+    type: vmess
+    server: 1.2.3.4
+    port: 443
+    uuid: 00000000-0000-0000-0000-000000000000
+    alterId: 0
+    cipher: auto
+    network: tcp

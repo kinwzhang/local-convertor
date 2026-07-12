@@ -1,0 +1,17 @@
+proxies:
+  - name: "vless-reality"
+    type: vless
+    server: cdn.example.com
+    port: 443
+    uuid: 00000000-0000-0000-0000-000000000002
+    network: ws
+    tls: true
+    servername: www.example.com
+    client-fingerprint: chrome
+    reality-opts:
+      public-key: PUBKEY
+      short-id: AB
+    ws-opts:
+      path: /ws
+      headers:
+        Host: www.example.com

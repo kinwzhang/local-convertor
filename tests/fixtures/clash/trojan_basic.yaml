@@ -1,0 +1,6 @@
+proxies:
+  - name: "trojan-basic"
+    type: trojan
+    server: 1.2.3.4
+    port: 443
+    password: "trojan-pass"
