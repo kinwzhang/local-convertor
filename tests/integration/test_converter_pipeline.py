@@ -187,27 +187,29 @@ def test_warnings_do_not_leak_source_url_or_passwords(app, tmp_path):
 
 
 def test_unchanged_content_updates_last_success_at(app, tmp_path):
-    """A-R7 contract: unchanged content is treated as a successful freshness check.
-
-    Skipped until Worker A's A-R7 is fixed — the orchestrator currently
-    updates `last_check_at` but not `last_success_at` for unchanged content.
-    Once A-R7 lands, remove the skip marker and the assertion will pass.
-    """
-    import pytest
-    pytest.skip("Worker A's A-R7 finding: unchanged content does not yet "
-                "update last_success_at; remove skip after A-R7 lands.")
-
+    """A-R7 contract: unchanged content is treated as a successful freshness check."""
+    from app.extensions import db as _db
     p = _create_provider()
+
     from app.services.fetcher import FetchResult
     good = FetchResult(content=GOOD_RAW, content_type="text/yaml", status_code=200)
     orch = _make_orchestrator(app, tmp_path)
     with patch.object(orch.fetcher, "fetch", return_value=good):
         orch.refresh(p.id, trigger="manual")
+
+    _db.session.expire_all()
     first = provider_repo.get_provider(p.id)
-    assert first.last_success_at is not None
+    assert first.last_success_at is not None, (
+        "first refresh should mark last_success_at; orchestrator regression?"
+    )
+
+    # Second identical fetch — unchanged.
     with patch.object(orch.fetcher, "fetch", return_value=good):
         orch.refresh(p.id, trigger="manual")
+
+    _db.session.expire_all()
     second = provider_repo.get_provider(p.id)
+    assert second.last_success_at is not None
     assert second.last_success_at >= first.last_success_at
     versions = provider_repo.get_versions(p.id)
-    assert len(versions) == 1
+    assert len(versions) == 1, "unchanged content must NOT create a new version"

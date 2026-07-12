@@ -389,15 +389,25 @@
             if (seenRunIds.has(id)) return;
             seenRunIds.add(id);
         }
+        // Defensive defaults: the orchestrator must publish every field
+        // per the frozen contract, but a missing field should never crash
+        // the log or render "[undefined]".
+        const providerName = line.provider_name != null ? String(line.provider_name) : `provider ${line.provider_id ?? "?"}`;
+        const trigger = line.trigger != null ? String(line.trigger) : "—";
+        const stage = line.stage != null ? String(line.stage) : "—";
+        const status = line.status != null ? String(line.status) : "running";
+        const ts = line.created_at ? new Date(line.created_at) : new Date();
+        const tsText = isNaN(ts.getTime()) ? "—" : ts.toLocaleTimeString();
+
         const box = $("#log-box");
         const div = el("div", {
-            class: `log-line status-${line.status || "running"}`,
+            class: `log-line status-${status}`,
             "data-id": id != null ? String(id) : "",
         }, [
-            el("span", { class: "ts" }, [new Date(line.created_at).toLocaleTimeString()]),
-            el("span", { class: "provider" }, [`[${escape(line.provider_name)}] `]),
-            el("span", { class: "stage" }, [`${escape(line.stage)} `]),
-            el("span", { class: "trigger" }, [`(${escape(line.trigger)}) `]),
+            el("span", { class: "ts" }, [tsText]),
+            el("span", { class: "provider" }, [`[${escape(providerName)}] `]),
+            el("span", { class: "stage" }, [`${escape(stage)} `]),
+            el("span", { class: "trigger" }, [`(${escape(trigger)}) `]),
             line.message ? el("span", { class: "msg" }, [escape(line.message)]) : null,
         ]);
         box.appendChild(div);
