@@ -62,13 +62,18 @@ class RefreshOrchestrator:
 
             run = create_update_run(provider_id, trigger)
             run_id = run.id
+            now = datetime.now(timezone.utc)
 
             publish_event({
                 "provider_id": provider_id,
                 "run_id": run_id,
+                "provider_name": provider.name,
+                "trigger": trigger,
                 "stage": "querying",
                 "message": "Fetching from provider",
                 "status": "running",
+                "created_at": now.isoformat(),
+                "completed_at": None,
             })
 
             try:
@@ -78,9 +83,13 @@ class RefreshOrchestrator:
                 publish_event({
                     "provider_id": provider_id,
                     "run_id": run_id,
+                    "provider_name": provider.name,
+                    "trigger": trigger,
                     "stage": "received",
                     "message": f"Got {len(fetch_result.content)} bytes",
                     "status": "running",
+                    "created_at": now.isoformat(),
+                    "completed_at": None,
                 })
 
                 update_run_stage(run, "received", f"Got {len(fetch_result.content)} bytes")
@@ -96,9 +105,13 @@ class RefreshOrchestrator:
                     publish_event({
                         "provider_id": provider_id,
                         "run_id": run_id,
+                        "provider_name": provider.name,
+                        "trigger": trigger,
                         "stage": "comparing",
                         "message": "Content unchanged",
                         "status": "success",
+                        "created_at": now.isoformat(),
+                        "completed_at": datetime.now(timezone.utc).isoformat(),
                     })
                     complete_update_run(run, "success", "Content unchanged")
                     return run_id
@@ -106,9 +119,13 @@ class RefreshOrchestrator:
                 publish_event({
                     "provider_id": provider_id,
                     "run_id": run_id,
+                    "provider_name": provider.name,
+                    "trigger": trigger,
                     "stage": "converting",
                     "message": "Converting to share links",
                     "status": "running",
+                    "created_at": now.isoformat(),
+                    "completed_at": None,
                 })
 
                 update_run_stage(run, "converting", "Converting to share links")
@@ -119,9 +136,13 @@ class RefreshOrchestrator:
                 publish_event({
                     "provider_id": provider_id,
                     "run_id": run_id,
+                    "provider_name": provider.name,
+                    "trigger": trigger,
                     "stage": "storing",
                     "message": f"Storing {conversion.proxy_count} nodes",
                     "status": "running",
+                    "created_at": now.isoformat(),
+                    "completed_at": None,
                 })
 
                 update_run_stage(run, "storing", f"Storing {conversion.proxy_count} nodes")
@@ -146,9 +167,13 @@ class RefreshOrchestrator:
                 publish_event({
                     "provider_id": provider_id,
                     "run_id": run_id,
+                    "provider_name": provider.name,
+                    "trigger": trigger,
                     "stage": "finished",
                     "message": f"Converted {conversion.proxy_count} nodes",
                     "status": "success",
+                    "created_at": now.isoformat(),
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
                 })
 
                 return run_id
@@ -162,9 +187,13 @@ class RefreshOrchestrator:
                 publish_event({
                     "provider_id": provider_id,
                     "run_id": run_id,
+                    "provider_name": provider.name,
+                    "trigger": trigger,
                     "stage": "failed",
                     "message": str(e),
                     "status": "failure",
+                    "created_at": now.isoformat(),
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
                 })
                 return run_id
 
