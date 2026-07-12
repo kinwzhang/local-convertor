@@ -154,9 +154,67 @@ to the same plaintext.
 | B3 — protocol encoders (12 protocols) | ✅ |
 | B4 — UI shell and provider table | ✅ |
 | B5 — schedule controls and actions | ✅ |
-| B6 — live update log | ✅ |
+| B6 — live update log (client ready; awaits A-R3) | ⚠ Conditional |
 | B7 — UI and integration tests | ✅ |
 | B8 — converter documentation and licensing | ✅ |
+
+## B-R1, B-R2, B-R3, B-R4 follow-ups (2026-07-12 revision)
+
+The Worker B review (`requirements/planning/20260712_analysis_worker_b_review_findings.md`)
+identified four follow-up items; all four are now resolved:
+
+### B-R1 — Inline editing
+
+The JS client now exposes an **Edit** action on every provider row that
+opens an inline editor with name / source URL / enabled / schedule
+inputs and Save / Cancel buttons. Source URLs are only visible while
+editing. Edit submits a `PATCH /api/providers/{id}` with the frozen
+payload shape. Buttons disable on submit; validation errors render inline.
+
+Tests:
+
+- `tests/integration/test_management_flow.py::test_create_provider_full_lifecycle`
+- `tests/integration/test_management_flow.py::test_js_has_edit_handler`
+- `tests/integration/test_management_flow.py::test_js_sends_patch_with_correct_payload_keys`
+
+### B-R2 — Live-log client
+
+Stable `data-id` identifiers on rendered lines; `seenRunIds` Set
+deduplicates across SSE reconnects and polling fallback; polling
+reverses newest-first ordering; history bounded at 500 with eviction
+also pruning the dedup set.
+
+Tests:
+
+- `tests/integration/test_live_log.py::test_sse_publishes_frozen_event_shape`
+- `tests/integration/test_live_log.py::test_js_uses_data_id_for_dedup`
+- `tests/integration/test_live_log.py::test_js_polling_reverses_newest_first`
+- `tests/integration/test_live_log.py::test_js_log_history_bounded`
+- `tests/integration/test_live_log.py::test_js_handles_reconnect`
+- `tests/integration/test_live_log.py::test_js_output_is_escaped_in_log_lines`
+
+**Conditional:** live incremental stage messages appear only after Worker
+A's A-R3 wires `publish_event()` into `app/services/updater.py`. The
+client-side contract is proven end-to-end via the static-analysis and
+SSE-format tests.
+
+### B-R3 — Executable UI tests
+
+`tests/integration/test_management_flow.py` exercises the full
+provider lifecycle (create → list → patch → rotate → refresh → delete)
+through the same `/api/providers` surface the JS client uses, and
+verifies every JS action handler ships the right HTTP verb + payload
+shape via static analysis. Without a browser-level JS runtime
+available, this gives us failure detection when handlers or payload
+fields are removed without updating both sides.
+
+### B-R4 — Documentation reconciliation
+
+`20260712_doc_ui_usage.md` and this file now describe only verified
+behaviour; the conditional nature of live incremental stage messages
+is recorded as a dependency on A-R3. See
+`20260712_fix_ui_doc_reconciliation.md` for the rationale and
+diff summary.
 
 Integration Gate 2 (converter passes its complete fixture suite;
 backend refresh service invokes the real converter and persists a

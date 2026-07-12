@@ -41,7 +41,10 @@ def test_static_js_served(client):
 def test_health_endpoint(client):
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.get_json() == {"status": "ok"}
+    body = response.get_json()
+    assert body["status"] == "ok"
+    # Worker A's health check (A-R1) also reports database reachability.
+    assert "database" in body
 
 
 def test_api_providers_list_returns_json(client):
