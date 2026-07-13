@@ -49,6 +49,10 @@ def encode(node: dict) -> str | None:
                 params.append(("sid", reality_opts["short-id"]))
             if reality_opts.get("spider-x"):
                 params.append(("spx", reality_opts["spider-x"]))
+            if reality_opts.get("mldsa65-verify"):
+                params.append(("pqv", reality_opts["mldsa65-verify"]))
+            if reality_opts.get("ech"):
+                params.append(("ech", reality_opts["ech"]))
 
     if network in {"ws", "http", "grpc", "h2"}:
         opts = {}

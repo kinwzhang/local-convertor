@@ -213,3 +213,47 @@ def test_unchanged_content_updates_last_success_at(app, tmp_path):
     assert second.last_success_at >= first.last_success_at
     versions = provider_repo.get_versions(p.id)
     assert len(versions) == 1, "unchanged content must NOT create a new version"
+
+
+# ---- Base64 subscription format tests ----
+
+import base64
+
+BASE64_LINKS_RAW = base64.b64encode(
+    b"ss://YWVzLTI1Ni1nY206cHc=@1.2.3.4:8388#test-ss\n"
+    b"vmess://eyJhZGQiOiIxLjIuMy41In0=@5.6.7.8:443#test-vmess\n"
+)
+
+
+def test_base64_subscription_decoded_through_pipeline(app, tmp_path):
+    """Base64-encoded share links should be decoded and stored as-is."""
+    p = _create_provider()
+    from app.services.fetcher import FetchResult
+    fake = FetchResult(content=BASE64_LINKS_RAW, content_type="text/plain", status_code=200)
+    orch = _make_orchestrator(app, tmp_path)
+    with patch.object(orch.fetcher, "fetch", return_value=fake):
+        orch.refresh(p.id, trigger="manual")
+
+    current = provider_repo.get_current_version(p.id)
+    assert current is not None
+    with open(current.converted_path, "rb") as f:
+        text = f.read().decode("utf-8")
+    assert "ss://" in text
+    assert "vmess://" in text
+    lines = [l for l in text.strip().split("\n") if l.strip()]
+    assert len(lines) == 2
+
+
+def test_base64_subscription_through_updater_sets_last_success(app, tmp_path):
+    """Base64 subscription should set last_success_at just like Clash YAML."""
+    p = _create_provider()
+    from app.services.fetcher import FetchResult
+    fake = FetchResult(content=BASE64_LINKS_RAW, content_type="text/plain", status_code=200)
+    orch = _make_orchestrator(app, tmp_path)
+    with patch.object(orch.fetcher, "fetch", return_value=fake):
+        orch.refresh(p.id, trigger="manual")
+
+    from app.extensions import db as _db
+    _db.session.expire_all()
+    fresh = provider_repo.get_provider(p.id)
+    assert fresh.last_success_at is not None

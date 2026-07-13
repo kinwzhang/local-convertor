@@ -29,6 +29,10 @@ def _get_run(app, run_id):
         return db.session.get(UpdateRun, run_id)
 
 
+def _mock_auto_result(mock_result):
+    return (mock_result, "ClashMeta")
+
+
 def test_refresh_converts_and_stores(app):
     with app.app_context():
         p = create_provider("Refresh Test", "https://example.com/clash.yaml", {"type": "disabled"})
@@ -37,7 +41,7 @@ def test_refresh_converts_and_stores(app):
         mock_result.content = SAMPLE_YAML
         mock_result.content_type = "text/yaml"
         mock_result.status_code = 200
-        with patch.object(orch.fetcher, "fetch", return_value=mock_result):
+        with patch.object(orch.fetcher, "fetch_with_auto_ua", return_value=_mock_auto_result(mock_result)):
             run_id = orch.refresh(p.id, trigger="manual")
     run = _get_run(app, run_id)
     assert run.status == "success"
@@ -55,7 +59,7 @@ def test_refresh_unchanged_content(app):
         mock_result.content = SAMPLE_YAML
         mock_result.content_type = "text/yaml"
         mock_result.status_code = 200
-        with patch.object(orch.fetcher, "fetch", return_value=mock_result):
+        with patch.object(orch.fetcher, "fetch_with_auto_ua", return_value=_mock_auto_result(mock_result)):
             orch.refresh(p.id)
             run2_id = orch.refresh(p.id)
     run2 = _get_run(app, run2_id)
@@ -67,7 +71,7 @@ def test_refresh_fetch_failure(app):
     with app.app_context():
         p = create_provider("Fail Test", "https://example.com/clash.yaml", {"type": "disabled"})
         orch = _make_orchestrator(app)
-        with patch.object(orch.fetcher, "fetch", side_effect=FetchError("Network error")):
+        with patch.object(orch.fetcher, "fetch_with_auto_ua", side_effect=FetchError("Network error")):
             run_id = orch.refresh(p.id)
     run = _get_run(app, run_id)
     assert run.status == "failure"
@@ -82,10 +86,10 @@ def test_refresh_preserves_last_good(app):
         mock_result.content = SAMPLE_YAML
         mock_result.content_type = "text/yaml"
         mock_result.status_code = 200
-        with patch.object(orch.fetcher, "fetch", return_value=mock_result):
+        with patch.object(orch.fetcher, "fetch_with_auto_ua", return_value=_mock_auto_result(mock_result)):
             orch.refresh(p.id)
             old_version = get_current_version(p.id)
-        with patch.object(orch.fetcher, "fetch", side_effect=FetchError("Network error")):
+        with patch.object(orch.fetcher, "fetch_with_auto_ua", side_effect=FetchError("Network error")):
             orch.refresh(p.id)
             current = get_current_version(p.id)
             assert current.id == old_version.id

@@ -78,7 +78,12 @@ class RefreshOrchestrator:
 
             try:
                 update_run_stage(run, "querying", "Fetching from provider")
-                fetch_result = self.fetcher.fetch(provider.source_url)
+                if provider.ua_mode == "auto":
+                    fetch_result, ua_used = self.fetcher.fetch_with_auto_ua(provider.source_url)
+                    logger.info("Auto-UA selected %s for provider %d", ua_used, provider_id)
+                else:
+                    ua_string = self.fetcher.resolve_ua(provider.ua_mode)
+                    fetch_result = self.fetcher.fetch(provider.source_url, ua=ua_string)
 
                 publish_event({
                     "provider_id": provider_id,
@@ -129,9 +134,9 @@ class RefreshOrchestrator:
                 })
 
                 update_run_stage(run, "converting", "Converting to share links")
-                from app.converter.clash import convert_clash_yaml
+                from app.converter import convert_subscription
 
-                conversion = convert_clash_yaml(fetch_result.content)
+                conversion = convert_subscription(fetch_result.content)
 
                 publish_event({
                     "provider_id": provider_id,

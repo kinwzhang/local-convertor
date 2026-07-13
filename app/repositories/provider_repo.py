@@ -16,7 +16,7 @@ def get_provider_by_token(token):
     return Provider.query.filter_by(public_token=token).first()
 
 
-def create_provider(name, source_url, schedule):
+def create_provider(name, source_url, schedule, ua_mode="auto"):
     p = Provider(
         name=name,
         source_url=source_url,
@@ -25,6 +25,7 @@ def create_provider(name, source_url, schedule):
         schedule_day_of_week=schedule.get("day_of_week"),
         schedule_time_of_day=schedule.get("time_of_day"),
         schedule_interval_hours=schedule.get("interval_hours"),
+        ua_mode=ua_mode,
     )
     db.session.add(p)
     db.session.commit()
@@ -38,6 +39,8 @@ def update_provider(provider, data):
         provider.source_url = data["source_url"]
     if "enabled" in data:
         provider.enabled = data["enabled"]
+    if "ua_mode" in data:
+        provider.ua_mode = data["ua_mode"]
     if "schedule" in data:
         s = data["schedule"]
         provider.schedule_type = s.get("type", provider.schedule_type)

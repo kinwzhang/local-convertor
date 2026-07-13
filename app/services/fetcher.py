@@ -28,6 +28,28 @@ class ProviderFetcher:
         self.max_response_size = max_response_size
         self.trusted_hosts = set(trusted_hosts or [])
 
+    # UA trial order from daede: ClashMeta → clash-verge → ClashForWindows → Clash → browser
+    _AUTO_UA_TRIALS = [
+        "ClashMeta",
+        "clash-verge/v2.4.2",
+        "ClashForWindows/0.20.39",
+        "Clash",
+        "browser",
+    ]
+    _BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36"
+
+    @classmethod
+    def resolve_ua(cls, mode: str) -> str | None:
+        """Resolve a UA mode to a literal User-Agent string.
+
+        Returns None for 'auto' (caller must use fetch_with_auto_ua).
+        """
+        if mode == "browser":
+            return cls._BROWSER_UA
+        if mode == "auto":
+            return None
+        return mode
+
     def _validate_url(self, url):
         parsed = urlparse(url)
         if parsed.scheme not in ("http", "https"):
@@ -68,13 +90,15 @@ class ProviderFetcher:
         if not self._is_safe_ip(hostname):
             raise FetchError(f"Destination {hostname} is not allowed (SSRF protection)")
 
-    def fetch(self, url):
+    def fetch(self, url, ua=None):
         self._validate_url(url)
         parsed = urlparse(url)
         self._resolve_and_check(parsed.hostname)
 
         collected = bytearray()
         content_type = ""
+
+        ua_string = ua or self._BROWSER_UA
 
         def on_response(response):
             nonlocal content_type
@@ -94,7 +118,7 @@ class ProviderFetcher:
             event_hooks={"response": [on_response]},
         ) as client:
             try:
-                with client.stream("GET", url, headers={"User-Agent": "LocalClashConverter/1.0"}) as response:
+                with client.stream("GET", url, headers={"User-Agent": ua_string}) as response:
                     on_stream_response(response)
 
                     if response.status_code >= 400:
@@ -122,3 +146,32 @@ class ProviderFetcher:
             content_type=content_type,
             status_code=response.status_code,
         )
+
+    def fetch_with_auto_ua(self, url):
+        """Try UAs in daede order; return first response convertible to share links.
+
+        Falls back to first successful response if none contain 'proxies:'.
+        Returns (FetchResult, ua_used).
+        """
+        first_result = None
+        first_ua = None
+
+        for ua_mode in self._AUTO_UA_TRIALS:
+            ua_string = self._BROWSER_UA if ua_mode == "browser" else ua_mode
+            try:
+                result = self.fetch(url, ua=ua_string)
+            except FetchError:
+                continue
+
+            text = result.content.decode("utf-8", errors="ignore")
+            if "proxies:" in text or "Proxy:" in text:
+                return result, ua_mode
+
+            if first_result is None:
+                first_result = result
+                first_ua = ua_mode
+
+        if first_result is not None:
+            return first_result, first_ua
+
+        raise FetchError("All User-Agent trials failed")

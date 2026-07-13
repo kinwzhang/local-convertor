@@ -32,6 +32,8 @@ class Provider(db.Model):
     last_error = db.Column(db.Text, nullable=True)
     current_version = db.Column(db.Integer, nullable=True)
 
+    ua_mode = db.Column(db.String(32), nullable=False, default="auto")
+
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
 
@@ -48,6 +50,7 @@ class Provider(db.Model):
             "name": self.name,
             "public_token": self.public_token,
             "enabled": self.enabled,
+            "ua_mode": self.ua_mode,
             "schedule": {
                 "type": self.schedule_type,
                 "day_of_month": self.schedule_day_of_month,

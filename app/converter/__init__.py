@@ -6,12 +6,19 @@
 """Clash YAML → share-link conversion engine.
 
 Public API:
-    convert_clash_yaml(raw: bytes) -> ConversionResult
+    convert_subscription(raw: bytes) -> ConversionResult   (auto-detect format)
+    convert_clash_yaml(raw: bytes) -> ConversionResult     (Clash YAML only)
     ConversionError
 """
 
 from app.converter.clash import convert_clash_yaml
 from app.converter.errors import ConversionError
 from app.converter.result import ConversionResult
+from app.converter.subscription import convert_subscription
 
-__all__ = ["convert_clash_yaml", "ConversionError", "ConversionResult"]
+__all__ = [
+    "convert_subscription",
+    "convert_clash_yaml",
+    "ConversionError",
+    "ConversionResult",
+]

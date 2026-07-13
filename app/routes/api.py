@@ -22,6 +22,7 @@ from app.services.scheduler import reschedule_provider, remove_provider_schedule
 bp = Blueprint("api", __name__)
 
 VALID_SCHEDULE_TYPES = {"disabled", "monthly", "weekly", "daily", "interval"}
+VALID_UA_MODES = {"auto", "ClashMeta", "clash-verge/v2.4.2", "ClashForWindows/0.20.39", "Clash", "browser"}
 MAX_NAME_LENGTH = 128
 MAX_INTERVAL_HOURS = 168
 
@@ -73,10 +74,15 @@ def api_create_provider():
     if errors:
         return jsonify(error="validation", details=errors), 400
 
+    ua_mode = data.get("ua_mode", "auto")
+    if ua_mode not in VALID_UA_MODES:
+        return jsonify(error="validation", details={"ua_mode": [f"Invalid UA mode. Must be one of: {', '.join(sorted(VALID_UA_MODES))}"]}), 400
+
     provider = create_provider(
         name=data["name"],
         source_url=data["source_url"],
         schedule=schedule,
+        ua_mode=ua_mode,
     )
 
     reschedule_provider(provider)
@@ -133,6 +139,10 @@ def api_update_provider(provider_id):
             dow = s.get("day_of_week", 0)
             if not isinstance(dow, int) or not (0 <= dow <= 6):
                 errors["schedule"] = ["day_of_week must be between 0 (Monday) and 6 (Sunday)"]
+
+    if "ua_mode" in data:
+        if data["ua_mode"] not in VALID_UA_MODES:
+            errors["ua_mode"] = [f"Invalid UA mode. Must be one of: {', '.join(sorted(VALID_UA_MODES))}"]
 
     if errors:
         return jsonify(error="validation", details=errors), 400
