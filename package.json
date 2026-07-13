@@ -1,0 +1,11 @@
+{
+  "name": "local-convertor-ui-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:ui": "node --test tests/browser/*.test.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0"
+  }
+}

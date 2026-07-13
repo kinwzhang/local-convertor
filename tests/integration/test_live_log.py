@@ -111,9 +111,10 @@ def test_js_uses_data_id_for_dedup():
     assert re.search(r'el\(\s*["\']div["\'][\s\S]{0,200}"data-id"', JS_SOURCE), (
         "app.js does not stamp data-id on appended log lines"
     )
-    assert "seenRunIds" in JS_SOURCE
-    assert "seenRunIds.add" in JS_SOURCE
-    assert "seenRunIds.has" in JS_SOURCE
+    assert "seenEventIds" in JS_SOURCE
+    assert "seenEventIds.add" in JS_SOURCE
+    assert "seenEventIds.has" in JS_SOURCE
+    assert "run_id" in JS_SOURCE and "stage" in JS_SOURCE and "status" in JS_SOURCE
 
 
 def test_js_polling_reverses_newest_first():
@@ -139,15 +140,12 @@ def test_js_sse_polling_fallback_paths_exist():
     assert "startPolling" in JS_SOURCE
 
 
-def test_js_output_is_escaped_in_log_lines():
-    """Provider names and messages must pass through escape(), not innerHTML."""
-    # The JS uses a local `providerName` variable for defensive rendering,
-    # but the escape() call must wrap it.
-    assert re.search(r'escape\(providerName\)', JS_SOURCE), (
-        "providerName must be wrapped in escape()"
-    )
-    assert re.search(r'escape\(line\.message\)', JS_SOURCE)
+def test_js_output_uses_text_nodes_not_html():
+    """Untrusted values must become text nodes without visible double escaping."""
+    assert "document.createTextNode" in JS_SOURCE
     assert "innerHTML" not in JS_SOURCE, "log lines should not use innerHTML"
+    assert "escape(providerName)" not in JS_SOURCE
+    assert "escape(line.message)" not in JS_SOURCE
 
 
 def test_js_no_source_url_logged_in_messages():

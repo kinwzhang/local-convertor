@@ -1,22 +1,22 @@
 # UI Documentation (Worker B deliverable B4-B6)
 
-Date: 2026-07-12 (revised 2026-07-12 to reconcile with B-R4)
+Date: 2026-07-12 (revised after Worker B second review)
 
 ## Status summary
 
 | Capability | Status | Evidence |
 |---|---|---|
 | Provider table render | Verified | `test_index_page_renders`, `test_static_js_served` |
-| Inline edit (B-R1) | Verified | `test_create_provider_full_lifecycle`, `test_js_has_edit_handler`, `test_js_sends_patch_with_correct_payload_keys` |
-| Schedule editor (monthly/weekly/daily/interval) | Verified | `test_js_schedule_editor_shows_relevant_fields_only`, `test_js_create_uses_POST_with_name_and_source_url` |
+| Inline edit (B-R1) | Verified | Executable JSDOM edit, cancel, and validation-preservation tests |
+| Schedule editor (monthly/weekly/daily/interval) | Verified | Executable JSDOM transition and payload tests |
 | Refresh / Copy / Rotate / Delete actions | Verified | `test_js_refresh_calls_correct_endpoint`, `test_js_rotate_calls_correct_endpoint`, `test_js_delete_calls_correct_endpoint`, `test_js_confirms_destructive_actions` |
 | Source-URL masking | Verified | `test_js_copies_public_url_only_on_copy_action`, `test_no_source_url_leak_in_index_html` |
 | SSE `connected` event | Verified | `test_sse_sends_initial_connected_event` |
-| Polling fallback | Verified | `test_js_sse_polling_fallback_paths_exist`, `test_js_polling_reverses_newest_first` |
+| Polling fallback | Verified | Executable JSDOM reconnect/fallback test plus integration guards |
 | Bounded log history | Verified | `test_js_log_history_bounded` |
-| Output escaping | Verified | `test_js_output_is_escaped_in_log_lines` |
-| Stable dedup via `data-id` | Verified | `test_js_uses_data_id_for_dedup` |
-| **Live incremental stage messages** | **Conditional** (A-R3) | `test_sse_publishes_frozen_event_shape` proves the **server** can publish; the **orchestrator** still does not call `publish_event` — depends on Worker A's A-R3 |
+| Safe text rendering | Verified | Executable hostile-text DOM test; no `innerHTML` use |
+| Stable event dedup via `data-id` | Verified | Composite `run_id:stage:status` executable test |
+| Live incremental stage messages | Verified against current worktree | Executable multi-stage SSE test; final clean-checkout verification depends on Worker A committing the event schema |
 
 ## Layout
 
@@ -76,14 +76,23 @@ user's input.
 events. If the stream does not open within 10 s, or drops mid-session, the
 client falls back to `GET /api/update-runs?limit=50` polling every 5 s.
 
-**Conditional behavior (depends on A-R3):** while the orchestrator is not
-yet calling `publish_event()`, no live stage messages will appear; only
-the initial `connected` event arrives. The polling fallback does work
-once Worker A wires `publish_event()` into `app/services/updater.py`.
+The client renders each distinct `run_id:stage:status` event, so all stages
+of one refresh remain visible while exact duplicates delivered by SSE and
+polling are suppressed. Final clean-checkout integration depends on Worker A
+committing the current full event-schema changes in `app/services/updater.py`.
 
-Log lines are rendered as escaped HTML — provider names and messages
-never reach `innerHTML` unescaped. The log is bounded to 500 lines; oldest
-lines are dropped (and their `run_id` removed from the dedup set).
+Log lines are created with text nodes; provider names and messages never
+reach `innerHTML`. This avoids both markup injection and visible double
+escaping. The log is bounded to 500 lines; oldest lines and their composite
+event IDs are dropped together.
+
+## Executable UI tests
+
+`npm run test:ui` runs the shipped template and `app.js` in JSDOM. It covers
+the browser management lifecycle, Sunday-zero scheduling, inline validation,
+confirmation behavior, hostile text, incremental events, reconnect/polling
+fallback, and native focusable controls at a narrow viewport. JSDOM is a
+development-only dependency and is not shipped to the production container.
 
 ## Endpoints the UI consumes
 

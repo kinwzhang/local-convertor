@@ -41,16 +41,6 @@
         return node;
     }
 
-    function escape(value) {
-        if (value == null) return "";
-        return String(value)
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#39;");
-    }
-
     // ---- API wrapper -----------------------------------------------------
     async function api(path, opts) {
         opts = opts || {};
@@ -164,13 +154,31 @@
         return `${Math.round(h / 24)}d ago`;
     }
 
+    function formatTimestamp(iso) {
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return "";
+        return d.toLocaleString(undefined, {
+            year: "numeric", month: "2-digit", day: "2-digit",
+            hour: "2-digit", minute: "2-digit", second: "2-digit",
+            timeZoneName: "short",
+        });
+    }
+
     function renderLastStatus(p) {
-        if (p.last_error) return el("span", { class: "status-fail" }, [escape(p.last_error)]);
+        if (p.last_error) {
+            const age = p.last_check_at ? " (" + humanAge(p.last_check_at) + ")" : "";
+            const ts = p.last_check_at ? " " + formatTimestamp(p.last_check_at) : "";
+            return el("span", { class: "status-fail" }, [String(p.last_error) + age + ts]);
+        }
         if (p.last_success_at) {
-            return el("span", { class: "status-ok" }, ["ok " + humanAge(p.last_success_at)]);
+            return el("span", { class: "status-ok" }, [
+                "ok " + humanAge(p.last_success_at) + " " + formatTimestamp(p.last_success_at),
+            ]);
         }
         if (p.last_check_at) {
-            return el("span", { class: "status-running" }, ["checked " + humanAge(p.last_check_at)]);
+            return el("span", { class: "status-running" }, [
+                "checked " + humanAge(p.last_check_at) + " " + formatTimestamp(p.last_check_at),
+            ]);
         }
         return el("span", { class: "muted" }, ["never"]);
     }
@@ -178,7 +186,7 @@
     function displayRow(p) {
         const tr = el("tr", { id: `provider-${p.id}`, "data-id": p.id });
         tr.appendChild(el("td", { class: "cell-name" }, [
-            el("span", { class: "provider-name" }, [escape(p.name)]),
+            el("span", { class: "provider-name" }, [String(p.name)]),
             p.enabled === false ? el("span", { class: "muted" }, [" (disabled)"]) : null,
         ]));
         // Source URL is hidden by default; only revealed while editing.
@@ -202,8 +210,8 @@
 
     function editRow(p, original) {
         const tr = el("tr", { id: `provider-${p.id}-edit`, "data-id": p.id, class: "editing" });
-        const nameInput = el("input", { type: "text", maxlength: "128", value: escape(p.name), id: `edit-name-${p.id}` });
-        const urlInput = el("input", { type: "url", value: escape(p.source_url || ""), id: `edit-url-${p.id}` });
+        const nameInput = el("input", { type: "text", maxlength: "128", value: String(p.name), id: `edit-name-${p.id}` });
+        const urlInput = el("input", { type: "url", value: String(p.source_url || ""), id: `edit-url-${p.id}` });
         const enabledInput = el("input", { type: "checkbox", checked: p.enabled !== false, id: `edit-enabled-${p.id}` });
         const editor = scheduleEditor(p.schedule || { type: "disabled" }, `edit-${p.id}`);
         const errBox = el("p", { class: "row-error error", id: `edit-err-${p.id}`, hidden: true });
@@ -380,14 +388,22 @@
     let sse = null;
     let pollTimer = null;
     let sseOpenTimer = null;
-    let seenRunIds = new Set();
+    let seenEventIds = new Set();
+
+    function eventId(line) {
+        if (line.run_id == null) return null;
+        const stage = line.stage != null ? String(line.stage) : "unknown";
+        const status = line.status != null ? String(line.status) : "unknown";
+        return `${line.run_id}:${stage}:${status}`;
+    }
 
     function appendLog(line) {
-        // Dedupe: skip run IDs we've already rendered.
-        const id = line.run_id;
+        // A run has several stages. Dedupe exact run/stage/status events while
+        // preserving the complete incremental progression.
+        const id = eventId(line);
         if (id != null) {
-            if (seenRunIds.has(id)) return;
-            seenRunIds.add(id);
+            if (seenEventIds.has(id)) return;
+            seenEventIds.add(id);
         }
         // Defensive defaults: the orchestrator must publish every field
         // per the frozen contract, but a missing field should never crash
@@ -405,17 +421,17 @@
             "data-id": id != null ? String(id) : "",
         }, [
             el("span", { class: "ts" }, [tsText]),
-            el("span", { class: "provider" }, [`[${escape(providerName)}] `]),
-            el("span", { class: "stage" }, [`${escape(stage)} `]),
-            el("span", { class: "trigger" }, [`(${escape(trigger)}) `]),
-            line.message ? el("span", { class: "msg" }, [escape(line.message)]) : null,
+            el("span", { class: "provider" }, [`[${providerName}] `]),
+            el("span", { class: "stage" }, [`${stage} `]),
+            el("span", { class: "trigger" }, [`(${trigger}) `]),
+            line.message ? el("span", { class: "msg" }, [String(line.message)]) : null,
         ]);
         box.appendChild(div);
         while (box.children.length > MAX_LOG_LINES) {
-            // Drop oldest visible line and prune its id from seenRunIds.
+            // Drop oldest visible line and prune its composite event id.
             const removed = box.firstChild;
             const removedId = removed.getAttribute("data-id");
-            if (removedId) seenRunIds.delete(parseInt(removedId, 10));
+            if (removedId) seenEventIds.delete(removedId);
             box.removeChild(removed);
         }
         box.scrollTop = box.scrollHeight;
@@ -491,5 +507,9 @@
         $("#new-save").addEventListener("click", createProvider);
         loadProviders();
         startSSE();
+        // Periodic provider refresh so the UI picks up background-thread updates
+        // (manual / scheduled / request-triggered refreshes run in threads that
+        // update the DB, but the UI has no other way to learn about them).
+        setInterval(loadProviders, POLL_INTERVAL_MS);
     });
 })();

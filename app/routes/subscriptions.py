@@ -1,10 +1,14 @@
+import logging
 from datetime import datetime, timezone
 
-from flask import Blueprint, abort, make_response, current_app
+from flask import Blueprint, abort, make_response, current_app, request
 
 from app.repositories.provider_repo import get_provider_by_token
 from app.services.version_store import VersionStore
 from app.services.updater import RefreshOrchestrator
+from app.routes.events import publish_event
+
+logger = logging.getLogger(__name__)
 
 bp = Blueprint("subscriptions", __name__)
 
@@ -15,11 +19,16 @@ def serve_subscription(token):
     if not provider:
         abort(404)
 
+    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+    if client_ip and "," in client_ip:
+        client_ip = client_ip.split(",")[0].strip()
+
     orch = RefreshOrchestrator(current_app._get_current_object())
 
     was_fresh = orch.is_fresh(provider.id)
     if not was_fresh:
         orch.refresh(provider.id, trigger="request")
+        provider = get_provider_by_token(token)
 
     vs = VersionStore(
         subscriptions_dir=current_app.config["SUBSCRIPTIONS_DIR"],
@@ -46,5 +55,22 @@ def serve_subscription(token):
     if not was_fresh and provider.last_error:
         resp.headers["Warning"] = '299 - "Stale data served due to fetch failure"'
         resp.headers["X-Subscription-Stale"] = "true"
+
+    status = "stale" if (not was_fresh and provider.last_error) else "served"
+    logger.info(
+        "Subscription %s from %s [%s]",
+        provider.name, client_ip, status,
+    )
+    publish_event({
+        "provider_id": provider.id,
+        "run_id": None,
+        "provider_name": provider.name,
+        "trigger": "request",
+        "stage": "served",
+        "status": "success",
+        "message": f"Client {client_ip} — {status}",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "completed_at": None,
+    })
 
     return resp

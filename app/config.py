@@ -16,7 +16,7 @@ class Config:
 
     SUBSCRIPTIONS_DIR = os.path.join(DATA_DIR, "subscriptions")
 
-    PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost:5000")
+    PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://10.8.6.13:5000")
     BIND_HOST = os.environ.get("BIND_HOST", "0.0.0.0")
     BIND_PORT = int(os.environ.get("BIND_PORT", "5000"))
 

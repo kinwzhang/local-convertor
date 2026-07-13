@@ -11,6 +11,7 @@ from app.converter.protocols import (
     http,
     hysteria,
     hysteria2,
+    mieru,
     socks5,
     ss,
     ssr,
@@ -34,6 +35,7 @@ ENCODERS = {
     "wireguard": wireguard.encode,
     "http": http.encode,
     "socks5": socks5.encode,
+    "mieru": mieru.encode,
 }
 
 __all__ = ["ENCODERS"]

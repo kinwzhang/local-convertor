@@ -9,3 +9,5 @@ data/
 .idea/
 .coverage
 htmlcov/
+node_modules/
+sample/

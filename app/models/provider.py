@@ -8,6 +8,20 @@ def _generate_token():
     return secrets.token_hex(16)
 
 
+def _iso_utc(dt):
+    """Serialize a datetime as ISO-8601 with explicit +00:00.
+
+    SQLite strips timezone info on round-trip, so naive datetimes read
+    back from the DB must be treated as UTC.  Appending +00:00 prevents
+    JavaScript from interpreting the timestamp as *local* browser time.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
+
+
 def _utcnow():
     return datetime.now(timezone.utc)
 
@@ -58,12 +72,12 @@ class Provider(db.Model):
                 "time_of_day": self.schedule_time_of_day,
                 "interval_hours": self.schedule_interval_hours,
             },
-            "last_check_at": self.last_check_at.isoformat() if self.last_check_at else None,
-            "last_success_at": self.last_success_at.isoformat() if self.last_success_at else None,
+            "last_check_at": _iso_utc(self.last_check_at),
+            "last_success_at": _iso_utc(self.last_success_at),
             "last_error": self.last_error,
             "current_version": self.current_version,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
+            "created_at": _iso_utc(self.created_at),
+            "updated_at": _iso_utc(self.updated_at),
         }
         if include_source_url:
             d["source_url"] = self.source_url
@@ -110,6 +124,6 @@ class UpdateRun(db.Model):
             "stage": self.stage,
             "status": self.status,
             "message": self.message,
-            "created_at": self.created_at.isoformat(),
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "created_at": _iso_utc(self.created_at),
+            "completed_at": _iso_utc(self.completed_at),
         }

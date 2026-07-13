@@ -16,26 +16,24 @@ import pytest
 
 
 def test_index_page_renders(client):
-    response = client.get("/")
-    assert response.status_code == 200
-    assert b"Local Clash Subscription Converter" in response.data
-    # Static asset references are present
-    assert b"app.css" in response.data
-    assert b"app.js" in response.data
+    with client.get("/") as response:
+        assert response.status_code == 200
+        assert b"Local Clash Subscription Converter" in response.data
+        assert b"app.css" in response.data
+        assert b"app.js" in response.data
 
 
 def test_static_css_served(client):
-    response = client.get("/static/app.css")
-    assert response.status_code == 200
-    assert b"background" in response.data or b"--bg" in response.data
+    with client.get("/static/app.css") as response:
+        assert response.status_code == 200
+        assert b"background" in response.data or b"--bg" in response.data
 
 
 def test_static_js_served(client):
-    response = client.get("/static/app.js")
-    assert response.status_code == 200
-    # The JS should reference the management API and SSE endpoint
-    assert b"/api/providers" in response.data
-    assert b"/api/events" in response.data
+    with client.get("/static/app.js") as response:
+        assert response.status_code == 200
+        assert b"/api/providers" in response.data
+        assert b"/api/events" in response.data
 
 
 def test_health_endpoint(client):
@@ -84,9 +82,9 @@ def test_subscription_unknown_token_head_returns_404(client):
 
 def test_subscription_url_format_in_index(client):
     """The JS client must reference /subscriptions/<token> URLs."""
-    response = client.get("/static/app.js")
-    body = response.data.decode("utf-8")
-    assert "/subscriptions/${" in body or "/subscriptions/" in body
+    with client.get("/static/app.js") as response:
+        body = response.data.decode("utf-8")
+        assert "/subscriptions/${" in body or "/subscriptions/" in body
 
 
 def test_no_source_url_leak_in_index_html(client):

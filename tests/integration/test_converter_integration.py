@@ -93,3 +93,37 @@ def test_conversion_error_cases_for_refresh_pipeline(bad_input):
     """Worker A's refresh service should map these to update-run failures."""
     with pytest.raises(ConversionError):
         convert_clash_yaml(bad_input)
+
+
+def test_real_sample_subscription_yields_all_proxies():
+    """Regression test: the bundled sample1.md has 20 mieru + 9 tuic = 29
+    proxies. Before the mieru encoder was added the converter silently
+    dropped the 20 mieru nodes (unknown type) and produced only 9 links —
+    matching the bug report "local-converter only gets 9". This test pins
+    the link count so the regression cannot return unnoticed."""
+    import re
+    from pathlib import Path
+
+    sample_path = Path(__file__).resolve().parents[2] / "sample" / "sample1.md"
+    text = sample_path.read_text(encoding="utf-8")
+    match = re.search(r"```yaml(.*?)```", text, re.DOTALL)
+    assert match is not None, "sample1.md missing a ```yaml``` block"
+    raw = match.group(1).encode("utf-8")
+
+    result = convert_clash_yaml(raw)
+    assert result.proxy_count == 29, (
+        f"expected 29 links (20 mieru + 9 tuic), got {result.proxy_count}: "
+        f"{result.warnings}"
+    )
+    assert result.warnings == [], (
+        f"unexpected conversion warnings: {result.warnings}"
+    )
+
+    schemes = sorted({link.split("://", 1)[0] for link in result.links})
+    assert schemes == ["mierus", "tuic"], (
+        f"expected only mierus:// and tuic:// schemes, got {schemes}"
+    )
+    mieru_links = [l for l in result.links if l.startswith("mierus://")]
+    tuic_links = [l for l in result.links if l.startswith("tuic://")]
+    assert len(mieru_links) == 20
+    assert len(tuic_links) == 9

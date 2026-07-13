@@ -3,12 +3,151 @@ from __future__ import annotations
 
 from urllib.parse import parse_qs, urlparse
 
+from app.converter.protocols.mieru import encode as mieru_encode
 from app.converter.protocols.vless import encode as vless_encode
 
 
 def _parse_vless_query(link: str) -> dict[str, str]:
     parsed = urlparse(link)
     return {k: v[0] for k, v in parse_qs(parsed.query).items()}
+
+
+class TestMieruEncoder:
+    def test_basic_node(self):
+        node = {
+            "name": "HK M1",
+            "type": "mieru",
+            "server": "x01.endpoint.alwaysbehappy.top",
+            "port": 61021,
+            "username": "3c57da75-09c8-42df-b106-6ccda51bb9c9",
+            "password": "3c57da75-09c8-42df-b106-6ccda51bb9c9",
+            "multiplexing": "MULTIPLEXING_OFF",
+            "transport": "TCP",
+        }
+        link = mieru_encode(node)
+        assert link is not None
+        assert link.startswith("mierus://")
+        parsed = urlparse(link)
+        assert parsed.scheme == "mierus"
+        # userinfo is "<username>:<password>"
+        assert parsed.netloc.startswith(
+            "3c57da75-09c8-42df-b106-6ccda51bb9c9:"
+            "3c57da75-09c8-42df-b106-6ccda51bb9c9@"
+        )
+        assert parsed.hostname == "x01.endpoint.alwaysbehappy.top"
+        # port is part of the query string in mierus://, NOT the URL authority
+        assert parsed.port is None
+        params = {k: v[0] for k, v in parse_qs(parsed.query, keep_blank_values=True).items()}
+        assert params["port"] == "61021"
+        assert params["protocol"] == "TCP"
+        assert params["multiplexing"] == "MULTIPLEXING_OFF"
+        assert params["profile"] == "default"
+        assert parsed.fragment == "HK%20M1"
+
+    def test_udp_transport(self):
+        node = {
+            "name": "udp-test",
+            "type": "mieru",
+            "server": "1.2.3.4",
+            "port": 5555,
+            "username": "u",
+            "password": "p",
+            "transport": "UDP",
+        }
+        link = mieru_encode(node)
+        assert link is not None
+        params = {
+            k: v[0]
+            for k, v in parse_qs(urlparse(link).query, keep_blank_values=True).items()
+        }
+        assert params["protocol"] == "UDP"
+
+    def test_default_transport_is_tcp(self):
+        node = {
+            "name": "no-transport",
+            "type": "mieru",
+            "server": "example.com",
+            "port": 9000,
+            "username": "u",
+            "password": "p",
+        }
+        link = mieru_encode(node)
+        assert link is not None
+        params = {
+            k: v[0]
+            for k, v in parse_qs(urlparse(link).query, keep_blank_values=True).items()
+        }
+        assert params["protocol"] == "TCP"
+        # multiplexing absent when input has none
+        assert "multiplexing" not in params
+
+    def test_unknown_transport_falls_back_to_tcp(self):
+        node = {
+            "name": "weird",
+            "type": "mieru",
+            "server": "example.com",
+            "port": 9000,
+            "username": "u",
+            "password": "p",
+            "transport": "QUIC",
+        }
+        link = mieru_encode(node)
+        assert link is not None
+        params = {
+            k: v[0]
+            for k, v in parse_qs(urlparse(link).query, keep_blank_values=True).items()
+        }
+        assert params["protocol"] == "TCP"
+
+    def test_missing_server_returns_none(self):
+        assert mieru_encode(
+            {"name": "x", "type": "mieru", "port": 1, "username": "u", "password": "p"}
+        ) is None
+
+    def test_missing_port_returns_none(self):
+        assert mieru_encode(
+            {"name": "x", "type": "mieru", "server": "h", "username": "u", "password": "p"}
+        ) is None
+
+    def test_missing_username_returns_none(self):
+        assert mieru_encode(
+            {"name": "x", "type": "mieru", "server": "h", "port": 1, "password": "p"}
+        ) is None
+
+    def test_missing_password_returns_none(self):
+        assert mieru_encode(
+            {"name": "x", "type": "mieru", "server": "h", "port": 1, "username": "u"}
+        ) is None
+
+    def test_name_with_cjk_and_emoji_is_percent_encoded(self):
+        node = {
+            "name": "🇭🇰 香港 M1",
+            "type": "mieru",
+            "server": "h.example",
+            "port": 61021,
+            "username": "u",
+            "password": "p",
+            "multiplexing": "MULTIPLEXING_OFF",
+            "transport": "TCP",
+        }
+        link = mieru_encode(node)
+        assert link is not None
+        assert "🇭🇰" not in link
+        assert "香港" not in link
+        # Fragment carries the percent-encoded name
+        assert urlparse(link).fragment  # non-empty
+
+    def test_default_name_uses_server_port(self):
+        node = {
+            "type": "mieru",
+            "server": "h.example",
+            "port": 61021,
+            "username": "u",
+            "password": "p",
+        }
+        link = mieru_encode(node)
+        assert link is not None
+        assert "mieru%20h.example%3A61021" in link
 
 
 class TestVlessEncoder:
