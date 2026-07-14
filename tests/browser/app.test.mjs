@@ -271,3 +271,143 @@ test("management controls remain native and keyboard focusable at a narrow viewp
     assert.notEqual(control.getAttribute("tabindex"), "-1");
   }
 });
+
+test("periodic table refresh does not destroy an in-progress edit row", async () => {
+  click(dom.window.document.querySelector('[title="Edit provider"]'));
+  const edit = dom.window.document.querySelector("tr.editing");
+  assert.ok(edit, "edit row opened on click");
+  edit.querySelector("#edit-name-7").value = "In-progress rename";
+  // POLL_INTERVAL_MS is 5000 in app.js; wait past it so the periodic
+  // setInterval(loadProviders, ...) has a chance to fire. Without the
+  // edit-aware guard this poll would replaceChildren() the tbody and
+  // wipe the user's in-progress edit.
+  await new Promise((resolve) => dom.window.setTimeout(resolve, 5100));
+  const editAfter = dom.window.document.querySelector("tr.editing");
+  assert.ok(editAfter, "edit row survives the periodic poll");
+  assert.equal(editAfter.querySelector("#edit-name-7").value, "In-progress rename");
+});
+
+test("copy URL falls back to a hidden textarea when navigator.clipboard is missing", async () => {
+  // Simulate a non-secure context (plain-HTTP LAN address) where the
+  // async clipboard API is gated off. The `clipboard` property was
+  // defined with `configurable: true` in beforeEach, so we may
+  // redefine it.
+  Object.defineProperty(dom.window.navigator, "clipboard", {
+    configurable: true,
+    value: undefined,
+  });
+  let copiedFromTextarea = null;
+  let textareaUsed = false;
+  dom.window.document.execCommand = (cmd) => {
+    if (cmd === "copy") {
+      const ta = dom.window.document.body.querySelector("textarea[readonly]");
+      if (ta) {
+        copiedFromTextarea = ta.value;
+        textareaUsed = true;
+      }
+      return true;
+    }
+    return false;
+  };
+  const btn = dom.window.document.querySelector('[title="Copy URL"]');
+  click(btn);
+  await settle();
+  assert.ok(textareaUsed, "textarea + execCommand fallback should be used");
+  assert.match(copiedFromTextarea, /\/subscriptions\/0123456789abcdef0123456789abcdef$/);
+  // The flash message lives outside the table, so it is visible even
+  // if the captured button reference has since been detached.
+  const flashEl = dom.window.document.querySelector("#form-error");
+  assert.equal(flashEl.textContent, "URL copied");
+  assert.equal(flashEl.hidden, false);
+});
+
+test("source URL is masked by default with an eye icon and no URL text", () => {
+  const cell = dom.window.document.querySelector("#provider-7 .cell-url");
+  const btn = cell.querySelector("button.icon-button");
+  assert.ok(btn, "icon button exists");
+  assert.equal(btn.getAttribute("type"), "button");
+  assert.equal(btn.getAttribute("aria-pressed"), "false");
+  assert.equal(btn.getAttribute("title"), "Reveal source URL");
+  // Open-eye icon means "click to reveal".
+  assert.ok(cell.querySelector(".icon-eye"), "open-eye icon shown when hidden");
+  assert.equal(cell.querySelector(".icon-eye-off"), null);
+  const mask = cell.querySelector(".source-url-mask");
+  assert.ok(mask);
+  assert.equal(mask.classList.contains("source-url-revealed"), false);
+  assert.equal(mask.textContent.includes("source_url"), false);
+  assert.equal(mask.textContent.includes("secret"), false);
+  assert.equal(mask.textContent.includes("example.com"), false);
+});
+
+test("clicking the eye reveals the URL and swaps the icon", async () => {
+  click(dom.window.document.querySelector("#provider-7 button.icon-button"));
+  await settle();
+  // Re-query the DOM after the click: `replaceWith` detaches the prior
+  // cell, so any captured reference would still hold the masked state.
+  const cell = dom.window.document.querySelector("#provider-7 .cell-url");
+  const mask = cell.querySelector(".source-url-mask");
+  assert.equal(mask.classList.contains("source-url-revealed"), true);
+  assert.equal(mask.textContent, provider.source_url);
+  // Eye-off icon means "click to hide".
+  assert.ok(cell.querySelector(".icon-eye-off"), "eye-off icon shown when revealed");
+  assert.equal(cell.querySelector(".icon-eye"), null);
+  const btn = cell.querySelector("button.icon-button");
+  assert.equal(btn.getAttribute("aria-pressed"), "true");
+  assert.equal(btn.getAttribute("title"), "Hide source URL");
+});
+
+test("clicking the eye a second time hides the URL again", async () => {
+  click(dom.window.document.querySelector("#provider-7 button.icon-button"));
+  await settle();
+  click(dom.window.document.querySelector("#provider-7 button.icon-button"));
+  await settle();
+  const cell = dom.window.document.querySelector("#provider-7 .cell-url");
+  const mask = cell.querySelector(".source-url-mask");
+  assert.equal(mask.classList.contains("source-url-revealed"), false);
+  assert.equal(mask.textContent.includes("example.com"), false);
+  assert.ok(cell.querySelector(".icon-eye"));
+  assert.equal(cell.querySelector(".icon-eye-off"), null);
+  const btn = cell.querySelector("button.icon-button");
+  assert.equal(btn.getAttribute("aria-pressed"), "false");
+  assert.equal(btn.getAttribute("title"), "Reveal source URL");
+});
+
+test("reveal state survives the periodic 5s table refresh", async () => {
+  click(dom.window.document.querySelector("#provider-7 button.icon-button"));
+  await settle();
+  const beforeMask = dom.window.document.querySelector("#provider-7 .source-url-mask");
+  assert.equal(beforeMask.classList.contains("source-url-revealed"), true,
+    "reveal applied locally before the poll");
+  // Wait past one full POLL_INTERVAL_MS (5000ms in app.js) so the
+  // background poll rebuilds tbody and consults revealedProviderIds.
+  await new Promise((resolve) => dom.window.setTimeout(resolve, 5100));
+  const cellAfter = dom.window.document.querySelector("#provider-7 .cell-url");
+  const maskAfter = cellAfter.querySelector(".source-url-mask");
+  assert.equal(maskAfter.classList.contains("source-url-revealed"), true,
+    "reveal persists after the periodic poll rebuilds tbody");
+  assert.equal(maskAfter.textContent, provider.source_url);
+  assert.equal(cellAfter.querySelector("button.icon-button").getAttribute("aria-pressed"), "true");
+});
+
+test("reveal state is pruned when a provider is deleted", async () => {
+  click(dom.window.document.querySelector("#provider-7 button.icon-button"));
+  await settle();
+  // Delete via the existing danger button on the row.
+  click(dom.window.document.querySelector("#provider-7 button.danger"));
+  await settle();
+  await new Promise((resolve) => dom.window.setTimeout(resolve, 5100));
+  assert.equal(dom.window.document.querySelector("#provider-7"), null,
+    "deleted row is gone after the poll");
+  // Internal invariant: a freshly created provider starts masked.
+  // (Indirect check that no stale id leaked into revealedProviderIds.)
+  dom.window.document.querySelector("#new-name").value = "After delete";
+  dom.window.document.querySelector("#new-url").value = "https://example.net/clash";
+  click(dom.window.document.querySelector("#new-save"));
+  await settle();
+  const newCell = dom.window.document.querySelector("#provider-8 .cell-url");
+  assert.ok(newCell, "new provider row exists");
+  const newMask = newCell.querySelector(".source-url-mask");
+  assert.equal(newMask.classList.contains("source-url-revealed"), false,
+    "newly-created provider starts masked (no stale reveal state)");
+  assert.equal(newMask.textContent, "••••••••");
+});

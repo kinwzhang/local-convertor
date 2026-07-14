@@ -41,6 +41,58 @@
         return node;
     }
 
+    // SVG namespace helper. `el()` uses `document.createElement`, which would
+    // emit `<svg>` as a void HTML element with no inline children — inline
+    // SVG (Lucide-style icon paths) needs `createElementNS`.
+    const ICON_NS = "http://www.w3.org/2000/svg";
+    function svgEl(tag, attrs, children) {
+        const node = document.createElementNS(ICON_NS, tag);
+        if (attrs) {
+            for (const [k, v] of Object.entries(attrs)) {
+                if (v == null || v === false) continue;
+                if (v === true) node.setAttribute(k, "");
+                else node.setAttribute(k, v);
+            }
+        }
+        if (children != null) {
+            for (const child of [].concat(children)) {
+                if (child == null) continue;
+                node.appendChild(typeof child === "string" ? document.createTextNode(child) : child);
+            }
+        }
+        return node;
+    }
+
+    // Lucide-style icons (16x16, `currentColor` stroke). Used by the
+    // source-URL reveal toggle. Convention: eye when hidden (click to
+    // reveal), eye-off when shown (click to hide).
+    function eyeIcon() {
+        return svgEl("svg", {
+            class: "icon icon-eye",
+            width: "16", height: "16", viewBox: "0 0 24 24",
+            fill: "none", stroke: "currentColor", "stroke-width": "2",
+            "stroke-linecap": "round", "stroke-linejoin": "round",
+            "aria-hidden": "true", focusable: "false",
+        }, [
+            svgEl("path", { d: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" }),
+            svgEl("circle", { cx: "12", cy: "12", r: "3" }),
+        ]);
+    }
+    function eyeOffIcon() {
+        return svgEl("svg", {
+            class: "icon icon-eye-off",
+            width: "16", height: "16", viewBox: "0 0 24 24",
+            fill: "none", stroke: "currentColor", "stroke-width": "2",
+            "stroke-linecap": "round", "stroke-linejoin": "round",
+            "aria-hidden": "true", focusable: "false",
+        }, [
+            svgEl("path", { d: "M9.88 9.88a3 3 0 1 0 4.24 4.24" }),
+            svgEl("path", { d: "M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" }),
+            svgEl("path", { d: "M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" }),
+            svgEl("line", { x1: "2", y1: "2", x2: "22", y2: "22" }),
+        ]);
+    }
+
     // ---- API wrapper -----------------------------------------------------
     async function api(path, opts) {
         opts = opts || {};
@@ -183,15 +235,38 @@
         return el("span", { class: "muted" }, ["never"]);
     }
 
+    function toggleSourceUrlReveal(provider) {
+        const id = provider.id;
+        if (revealedProviderIds.has(id)) revealedProviderIds.delete(id);
+        else revealedProviderIds.add(id);
+        // Re-render only the affected row in place — no network round-trip.
+        const tbody = $("#provider-rows");
+        if (!tbody) return;
+        const existing = $(`#provider-${id}`, tbody);
+        if (existing) existing.replaceWith(displayRow(provider));
+    }
+
     function displayRow(p) {
         const tr = el("tr", { id: `provider-${p.id}`, "data-id": p.id });
         tr.appendChild(el("td", { class: "cell-name" }, [
             el("span", { class: "provider-name" }, [String(p.name)]),
             p.enabled === false ? el("span", { class: "muted" }, [" (disabled)"]) : null,
         ]));
-        // Source URL is hidden by default; only revealed while editing.
+        // Source URL is masked by default; click the eye to reveal it on demand.
+        const urlRevealed = revealedProviderIds.has(p.id);
         tr.appendChild(el("td", { class: "cell-url muted" }, [
-            el("span", { class: "source-url-mask" }, ["••• (hidden; only revealed while editing)"]),
+            el("span", {
+                class: urlRevealed ? "source-url-mask source-url-revealed" : "source-url-mask",
+                "data-testid": `source-url-${p.id}`,
+            }, [urlRevealed ? String(p.source_url || "") : "••••••••"]),
+            el("button", {
+                type: "button",
+                class: "icon-button",
+                title: urlRevealed ? "Hide source URL" : "Reveal source URL",
+                "aria-label": urlRevealed ? "Hide source URL" : "Reveal source URL",
+                "aria-pressed": urlRevealed ? "true" : "false",
+                onclick: () => toggleSourceUrlReveal(p),
+            }, [urlRevealed ? eyeOffIcon() : eyeIcon()]),
         ]));
         tr.appendChild(el("td", { class: "url-cell" }, [
             el("a", { href: publicUrl(p.public_token), target: "_blank", rel: "noopener" }, [publicUrl(p.public_token)]),
@@ -244,6 +319,7 @@
 
     function beginEdit(p, tr) {
         // Hide the display row and insert an edit row directly after it.
+        editingProviderId = p.id;
         tr.hidden = true;
         const editTr = editRow(p, p);
         tr.parentNode.insertBefore(editTr, tr.nextSibling);
@@ -278,6 +354,7 @@
     }
 
     function cancelEdit(p, tr, original) {
+        editingProviderId = null;
         const displayTr = $(`#provider-${p.id}`);
         if (displayTr) displayTr.hidden = false;
         tr.parentNode.removeChild(tr);
@@ -294,24 +371,60 @@
     }
 
     function copyToClipboard(text, btn) {
-        if (!navigator.clipboard) {
-            flash("clipboard not available");
-            return;
-        }
-        navigator.clipboard.writeText(text).then(
-            () => {
-                if (btn) {
-                    const orig = btn.textContent;
-                    btn.textContent = "Copied!";
-                    btn.disabled = true;
-                    setTimeout(() => {
+        // Visible feedback that survives the periodic table rebuild (the
+        // background poll that re-renders the tbody every 5s can detach
+        // the captured `btn` before the user sees anything happen).
+        const showFeedback = () => {
+            flash("URL copied", false);
+            if (btn && document.body.contains(btn)) {
+                const orig = btn.textContent;
+                btn.textContent = "Copied!";
+                btn.disabled = true;
+                setTimeout(() => {
+                    if (document.body.contains(btn)) {
                         btn.textContent = orig;
                         btn.disabled = false;
-                    }, 1200);
-                }
-            },
-            () => flash("clipboard write failed")
-        );
+                    }
+                }, 1200);
+            }
+        };
+        const showFailure = (e) => {
+            const msg = (e && e.message) ? e.message : "unknown";
+            flash(`copy failed: ${msg}`);
+        };
+
+        // Modern path: `navigator.clipboard` is only exposed in secure
+        // contexts (HTTPS, localhost, file://). On a trusted LAN deployment
+        // reached via http://192.168.x.y:5000 it is `undefined`, so fall
+        // through to the legacy textarea + execCommand path below.
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(showFeedback, showFailure);
+            return;
+        }
+        // Legacy fallback: hidden <textarea> + execCommand("copy"). Both
+        // are still widely supported and are not gated by secure context,
+        // which is the only path that works on plain-HTTP LAN addresses.
+        try {
+            if (typeof document.execCommand !== "function") {
+                throw new Error("clipboard API unavailable");
+            }
+            const ta = document.createElement("textarea");
+            ta.value = text;
+            ta.setAttribute("readonly", "");
+            ta.style.position = "fixed";
+            ta.style.top = "0";
+            ta.style.left = "0";
+            ta.style.opacity = "0";
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            const ok = document.execCommand("copy");
+            document.body.removeChild(ta);
+            if (!ok) throw new Error("execCommand returned false");
+            showFeedback();
+        } catch (e) {
+            showFailure(e);
+        }
     }
 
     async function rotateProvider(id) {
@@ -374,9 +487,32 @@
     }
 
     // ---- Loading ---------------------------------------------------------
+    // Tracks the id of a provider whose edit row is currently on screen.
+    // While set, the periodic `loadProviders` poll skips rebuilding the
+    // table so an in-progress edit is not destroyed mid-typing (the row
+    // is appended next to a hidden display row, so a full tbody
+    // replaceChildren would clobber it). Cleared by `cancelEdit`.
+    let editingProviderId = null;
+
+    // Provider IDs whose source URL should be shown unmasked in the
+    // display row. Lives outside the DOM because `loadProviders` does a
+    // full `tbody.replaceChildren(...)` every POLL_INTERVAL_MS — anything
+    // in DOM state alone would be lost on the next tick. Pruned in
+    // `loadProviders` against the live id list so it stays bounded by
+    // the active provider count.
+    const revealedProviderIds = new Set();
+
     async function loadProviders() {
+        // Don't disturb an open edit row; its inputs would otherwise be
+        // discarded by the full tbody rebuild below, and the user has
+        // not yet saved their changes.
+        if (editingProviderId != null) return;
         try {
             const providers = await api("/api/providers");
+            const liveIds = new Set(providers.map((p) => p.id));
+            for (const id of Array.from(revealedProviderIds)) {
+                if (!liveIds.has(id)) revealedProviderIds.delete(id);
+            }
             const tbody = $("#provider-rows");
             tbody.replaceChildren(...providers.map(displayRow));
         } catch (e) {

@@ -170,6 +170,50 @@ button.primary {
     letter-spacing: 0.05em;
 }
 
+/* ---- Source URL reveal toggle ----------------------------------------- */
+.source-url-mask.source-url-revealed {
+    color: var(--fg);
+    font-style: normal;
+    word-break: break-all;
+    letter-spacing: normal;
+}
+
+.icon-button {
+    background: transparent;
+    color: var(--muted);
+    border: none;
+    padding: 0.1rem 0.25rem;
+    margin: 0 0 0 0.35rem;
+    border-radius: 4px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    vertical-align: middle;
+}
+
+.icon-button:hover {
+    color: var(--accent);
+    /* Override the global `button:hover` brightness filter
+       (the global rule would otherwise lighten the muted-colored eye). */
+    filter: none;
+}
+
+.icon-button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+    color: var(--accent);
+}
+
+.icon-button[aria-pressed="true"] {
+    color: var(--accent);
+}
+
+.icon-button .icon {
+    display: block;
+    pointer-events: none;
+}
+
 .url-cell {
     font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     font-size: 0.8rem;
