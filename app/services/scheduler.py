@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -28,6 +28,36 @@ def _scheduled_refresh(provider_id):
             orch.refresh(provider_id, trigger="scheduled")
         except Exception:
             logger.exception("Scheduled refresh failed for provider %d", provider_id)
+
+
+def _purge_old_logs():
+    """Hourly cron: drop log entries older than the configured retention.
+
+    Reads the live `log_retention_days` from the AppSettings row each tick,
+    so a UI-saved change takes effect without restarting the worker.
+    """
+    if _app is None:
+        return
+    with _app.app_context():
+        log_store = _app.extensions.get("log_store") if hasattr(_app, "extensions") else None
+        if log_store is None:
+            return
+        try:
+            # Read live settings (not the static config) so UI edits apply
+            # without an app restart.
+            from app.repositories.settings_repo import get_settings
+            s = get_settings()
+            days = s.log_retention_days
+        except Exception:
+            logger.exception("Could not read AppSettings; skipping log retention tick")
+            return
+        try:
+            removed = log_store.purge_older_than(days)
+        except Exception:
+            logger.exception("Log retention purge failed")
+            return
+        if removed:
+            logger.info("Log retention: removed %d entries older than %d day(s)", removed, days)
 
 
 def _get_timezone():
@@ -124,6 +154,20 @@ def init_scheduler(app):
                         logger.exception("Failed to schedule provider %d", p.id)
         except Exception:
             logger.debug("Scheduler init: tables not ready yet, skipping provider load")
+
+        # Log retention cron. Hourly tick keeps the file small without
+        # hammering the disk. `replace_existing=True` keeps it idempotent
+        # across re-inits.
+        try:
+            _scheduler.add_job(
+                _purge_old_logs,
+                trigger=IntervalTrigger(hours=1),
+                id="purge_old_logs",
+                replace_existing=True,
+                next_run_time=datetime.now() + timedelta(minutes=1),
+            )
+        except Exception:
+            logger.exception("Failed to register log retention job")
 
     return _scheduler
 

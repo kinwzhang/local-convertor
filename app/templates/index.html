@@ -75,8 +75,41 @@
 
         <section id="log-section">
             <h2>Live Update Log</h2>
-            <div id="log-status" class="muted">Connecting…</div>
+            <div class="log-header">
+                <span id="log-status" class="muted">Connecting…</span>
+                <button id="log-clear" type="button" class="section-button">Clear logs</button>
+            </div>
             <pre id="log-box" aria-live="polite"></pre>
+        </section>
+
+        <section id="settings-section">
+            <h2>Log forwarding</h2>
+            <p class="muted">Ship every refresh and subscription-query event to a remote rsyslog server. Leave the host blank to disable shipping.</p>
+            <div class="settings-grid">
+                <label for="settings-host">rsyslog host</label>
+                <input type="text" id="settings-host" placeholder="10.0.0.10 or log.example.com" maxlength="255" disabled>
+
+                <label for="settings-port">port</label>
+                <input type="number" id="settings-port" min="1" max="65535" value="514" disabled>
+
+                <label for="settings-proto">protocol</label>
+                <select id="settings-proto" disabled>
+                    <option value="tcp">tcp</option>
+                    <option value="udp">udp</option>
+                </select>
+
+                <label for="settings-facility">facility</label>
+                <input type="text" id="settings-facility" placeholder="local0" maxlength="32" value="local0" disabled>
+
+                <label for="settings-retention">log retention (days)</label>
+                <input type="number" id="settings-retention" min="1" value="7" disabled>
+            </div>
+            <p>
+                <button type="button" id="settings-edit">Edit</button>
+                <button type="button" id="settings-save" hidden>Save</button>
+                <button type="button" id="settings-cancel" class="section-button" hidden>Cancel</button>
+                <span id="settings-status" class="muted"></span>
+            </p>
         </section>
     </main>
     <script src="{{ url_for('static', filename='app.js') }}"></script>

@@ -13,17 +13,40 @@ logger = logging.getLogger(__name__)
 bp = Blueprint("subscriptions", __name__)
 
 
+def _emit_query_log(app, event_type, fields):
+    """Mirror the updater's hook: append + rsyslog-sink for query events."""
+    log_store = app.extensions.get("log_store") if hasattr(app, "extensions") else None
+    log_sink = app.extensions.get("log_sink") if hasattr(app, "extensions") else None
+    payload = {**fields, "event": event_type}
+    if log_store is not None:
+        try:
+            log_store.append(payload)
+        except Exception:  # pragma: no cover
+            logger.exception("log_store.append failed on subscription query")
+    if log_sink is not None:
+        try:
+            log_sink.emit(event_type, **payload)
+        except Exception:  # pragma: no cover
+            logger.exception("log_sink.emit failed on subscription query")
+
+
+def _client_ip():
+    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+    if client_ip and "," in client_ip:
+        client_ip = client_ip.split(",")[0].strip()
+    return client_ip
+
+
 @bp.route("/subscriptions/<token>", methods=["GET", "HEAD"])
 def serve_subscription(token):
+    app = current_app._get_current_object()
     provider = get_provider_by_token(token)
     if not provider:
         abort(404)
 
-    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
-    if client_ip and "," in client_ip:
-        client_ip = client_ip.split(",")[0].strip()
+    client_ip = _client_ip()
 
-    orch = RefreshOrchestrator(current_app._get_current_object())
+    orch = RefreshOrchestrator(app)
 
     was_fresh = orch.is_fresh(provider.id)
     if not was_fresh:
@@ -31,8 +54,8 @@ def serve_subscription(token):
         provider = get_provider_by_token(token)
 
     vs = VersionStore(
-        subscriptions_dir=current_app.config["SUBSCRIPTIONS_DIR"],
-        retention_count=current_app.config["VERSION_RETENTION_COUNT"],
+        subscriptions_dir=app.config["SUBSCRIPTIONS_DIR"],
+        retention_count=app.config["VERSION_RETENTION_COUNT"],
     )
 
     content = vs.get_current(provider.id)
@@ -71,6 +94,16 @@ def serve_subscription(token):
         "message": f"Client {client_ip} — {status}",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "completed_at": None,
+    })
+    event_type = "subscription.stale" if status == "stale" else "subscription.served"
+    _emit_query_log(app, event_type, {
+        "run_id": None,
+        "provider_id": provider.id,
+        "provider_name": provider.name,
+        "trigger": "request",
+        "status": "success" if status == "served" else "warning",
+        "client_ip": client_ip,
+        "message": f"Client {client_ip} — {status}",
     })
 
     return resp

@@ -18,6 +18,7 @@ from app.repositories.provider_repo import (
 )
 from app.services.updater import RefreshOrchestrator
 from app.services.scheduler import reschedule_provider, remove_provider_schedule
+from app.repositories.settings_repo import get_settings, update_settings
 
 bp = Blueprint("api", __name__)
 
@@ -163,7 +164,7 @@ def api_delete_provider(provider_id):
         subscriptions_dir=current_app.config["SUBSCRIPTIONS_DIR"],
         retention_count=current_app.config["VERSION_RETENTION_COUNT"],
     )
-    vs.delete_provider_files(provider_id)
+    vs.delete_provider_files(provider_id, provider.name)
     delete_provider(provider)
     remove_provider_schedule(provider_id)
     return jsonify(status="deleted")
@@ -205,3 +206,62 @@ def api_list_update_runs():
     provider_id = request.args.get("provider_id", type=int)
     runs = list_update_runs(provider_id=provider_id)
     return jsonify([r.to_dict() for r in runs])
+
+
+@bp.route("/logs", methods=["GET"])
+def api_list_logs():
+    log_store = current_app.extensions.get("log_store") if hasattr(current_app, "extensions") else None
+    if log_store is None:
+        return jsonify(entries=[])
+    provider_id = request.args.get("provider_id", type=int)
+    limit = request.args.get("limit", default=200, type=int)
+    if limit is None or limit <= 0 or limit > 1000:
+        limit = 200
+    entries = log_store.entries(provider_id=provider_id, limit=limit)
+    return jsonify(entries=entries)
+
+
+@bp.route("/logs/clear", methods=["POST"])
+def api_clear_logs():
+    log_store = current_app.extensions.get("log_store") if hasattr(current_app, "extensions") else None
+    if log_store is None:
+        return jsonify(cleared=0)
+    cleared = log_store.clear()
+    return jsonify(cleared=cleared)
+
+
+def _rebuild_log_sink(app):
+    """Build a fresh LogSink from the live settings row and replace it."""
+    from app.services.log_sink import LogSink
+    s = get_settings()
+    new_sink = LogSink(
+        host=s.rsyslog_host,
+        port=s.rsyslog_port,
+        proto=s.rsyslog_proto,
+        facility=s.rsyslog_facility,
+    )
+    old = app.extensions.get("log_sink") if hasattr(app, "extensions") else None
+    if old is not None:
+        try:
+            old.close()
+        except Exception:
+            pass
+    app.extensions["log_sink"] = new_sink
+
+
+@bp.route("/settings", methods=["GET"])
+def api_get_settings():
+    s = get_settings()
+    return jsonify(s.to_dict())
+
+
+@bp.route("/settings", methods=["PATCH"])
+def api_update_settings():
+    data = request.get_json(silent=True) or {}
+    try:
+        s = update_settings(**data)
+    except ValueError as e:
+        return jsonify(error="validation", details={"_": [str(e)]}), 400
+    app = current_app._get_current_object()
+    _rebuild_log_sink(app)
+    return jsonify(s.to_dict())

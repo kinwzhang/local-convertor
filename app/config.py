@@ -28,3 +28,13 @@ class Config:
     VERSION_RETENTION_COUNT = int(os.environ.get("VERSION_RETENTION_COUNT", "5"))
 
     TRUSTED_HOSTS: list[str] = os.environ.get("TRUSTED_HOSTS", "").split(",") if os.environ.get("TRUSTED_HOSTS") else []
+
+    # rsyslog shipping. When RSYSLOG_HOST is unset the LogSink is a no-op.
+    RSYSLOG_HOST = os.environ.get("RSYSLOG_HOST")
+    RSYSLOG_PORT = int(os.environ.get("RSYSLOG_PORT", "514"))
+    RSYSLOG_PROTO = os.environ.get("RSYSLOG_PROTO", "tcp").lower()
+    RSYSLOG_FACILITY = os.environ.get("RSYSLOG_FACILITY", "local0")
+
+    # Local JSONL event log + retention.
+    LOGS_DIR = os.path.join(DATA_DIR, "logs")
+    LOG_RETENTION_DAYS = int(os.environ.get("LOG_RETENTION_DAYS", "7"))

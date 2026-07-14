@@ -47,11 +47,17 @@ def test_clean_volume_db_init():
             DATA_DIR = tmpdir
             SUBSCRIPTIONS_DIR = os.path.join(tmpdir, "subscriptions")
             DATABASE_DIR = os.path.join(tmpdir, "database")
+            LOGS_DIR = os.path.join(tmpdir, "logs")
             REQUEST_TIMEOUT = 30
             MAX_RESPONSE_SIZE = 10 * 1024 * 1024
             FRESHNESS_THRESHOLD_HOURS = 3
             VERSION_RETENTION_COUNT = 5
+            LOG_RETENTION_DAYS = 7
             TRUSTED_HOSTS = []
+            RSYSLOG_HOST = None
+            RSYSLOG_PORT = 514
+            RSYSLOG_PROTO = "tcp"
+            RSYSLOG_FACILITY = "local0"
 
         from app import create_app
         from app.extensions import db as _db

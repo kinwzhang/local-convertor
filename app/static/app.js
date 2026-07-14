@@ -486,6 +486,134 @@
         }
     }
 
+    async function clearLogs() {
+        const btn = $("#log-clear");
+        if (!btn) return;
+        if (!confirm("Clear all log entries? New events will keep streaming in.")) {
+            return;
+        }
+        btn.disabled = true;
+        try {
+            const result = await api("/api/logs/clear", { method: "POST" });
+            // Drop in-memory dedup state and the rendered log box so the
+            // upcoming SSE events look like a fresh stream.
+            seenEventIds.clear();
+            const box = $("#log-box");
+            if (box) box.replaceChildren();
+            flash(`cleared ${result.cleared} log ${result.cleared === 1 ? "entry" : "entries"}`, false);
+        } catch (e) {
+            flash(`clear failed: ${e.message}`);
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function loadSettings() {
+        const setSel = (id, v) => { const el = $(id); if (el) el.value = v ?? ""; };
+        try {
+            const s = await api("/api/settings");
+            setSel("#settings-host", s.rsyslog_host || "");
+            setSel("#settings-port", s.rsyslog_port);
+            setSel("#settings-proto", s.rsyslog_proto);
+            setSel("#settings-facility", s.rsyslog_facility);
+            setSel("#settings-retention", s.log_retention_days);
+        } catch (e) {
+            const status = $("#settings-status");
+            if (status) status.textContent = `load failed: ${e.message}`;
+        }
+    }
+
+    // Snapshot of the current settings form values; taken when the user
+    // enters edit mode and restored on Cancel.
+    let _settingsSnapshot = null;
+
+    function _settingsInputs() {
+        return [
+            $("#settings-host"),
+            $("#settings-port"),
+            $("#settings-proto"),
+            $("#settings-facility"),
+            $("#settings-retention"),
+        ].filter(Boolean);
+    }
+
+    function _setSettingsEnabled(on) {
+        for (const el of _settingsInputs()) el.disabled = !on;
+    }
+
+    function _settingsMode(view) {
+        const edit = $("#settings-edit");
+        const save = $("#settings-save");
+        const cancel = $("#settings-cancel");
+        if (edit) edit.hidden = !view;
+        if (save) save.hidden = view;
+        if (cancel) cancel.hidden = view;
+        _setSettingsEnabled(!view);
+    }
+
+    function _captureSettingsSnapshot() {
+        const out = {};
+        for (const el of _settingsInputs()) out[el.id] = el.value;
+        return out;
+    }
+
+    function _restoreSettingsSnapshot() {
+        if (!_settingsSnapshot) return;
+        for (const el of _settingsInputs()) {
+            if (Object.prototype.hasOwnProperty.call(_settingsSnapshot, el.id)) {
+                el.value = _settingsSnapshot[el.id];
+            }
+        }
+    }
+
+    function beginSettingsEdit() {
+        _settingsSnapshot = _captureSettingsSnapshot();
+        _settingsMode(false);
+        const status = $("#settings-status");
+        if (status) status.textContent = "";
+        $("#settings-host")?.focus();
+    }
+
+    function cancelSettingsEdit() {
+        _restoreSettingsSnapshot();
+        _settingsMode(true);
+        const status = $("#settings-status");
+        if (status) status.textContent = "";
+    }
+
+    async function saveSettings() {
+        const btn = $("#settings-save");
+        const status = $("#settings-status");
+        if (!btn) return;
+        const payload = {
+            rsyslog_host: ($("#settings-host").value || "").trim() || null,
+            rsyslog_port: parseInt($("#settings-port").value, 10),
+            rsyslog_proto: $("#settings-proto").value,
+            rsyslog_facility: ($("#settings-facility").value || "").trim(),
+            log_retention_days: parseInt($("#settings-retention").value, 10),
+        };
+        btn.disabled = true;
+        if (status) status.textContent = "";
+        try {
+            await api("/api/settings", { method: "PATCH", body: JSON.stringify(payload) });
+            // Read-back so the disabled view reflects what we just persisted
+            // (covers any server-side normalization like port/proto casing).
+            await loadSettings();
+            if (status) status.textContent = "saved";
+            flash("settings saved", false);
+            _settingsMode(true);
+        } catch (e) {
+            const detail = e.details && Object.keys(e.details).length
+                ? `: ${JSON.stringify(e.details)}`
+                : "";
+            if (status) status.textContent = `save failed: ${e.message}${detail}`;
+            flash(`save failed: ${e.message}${detail}`);
+            // Stay in edit mode on error so the user can fix the input.
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
     // ---- Loading ---------------------------------------------------------
     // Tracks the id of a provider whose edit row is currently on screen.
     // While set, the periodic `loadProviders` poll skips rebuilding the
@@ -641,7 +769,16 @@
         const oldScheduleTd = newRow.children[3];
         oldScheduleTd.replaceChildren(scheduleEditor({ type: "disabled" }, "new"));
         $("#new-save").addEventListener("click", createProvider);
+        const clearBtn = $("#log-clear");
+        if (clearBtn) clearBtn.addEventListener("click", clearLogs);
+        const settingsSave = $("#settings-save");
+        if (settingsSave) settingsSave.addEventListener("click", saveSettings);
+        const settingsEdit = $("#settings-edit");
+        if (settingsEdit) settingsEdit.addEventListener("click", beginSettingsEdit);
+        const settingsCancel = $("#settings-cancel");
+        if (settingsCancel) settingsCancel.addEventListener("click", cancelSettingsEdit);
         loadProviders();
+        loadSettings();
         startSSE();
         // Periodic provider refresh so the UI picks up background-thread updates
         // (manual / scheduled / request-triggered refreshes run in threads that

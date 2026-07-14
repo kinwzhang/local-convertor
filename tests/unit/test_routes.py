@@ -104,7 +104,7 @@ def test_subscription_serves_content(app):
         token = p.public_token
         from app.services.version_store import VersionStore
         vs = VersionStore(app.config["SUBSCRIPTIONS_DIR"], 5)
-        vs.store_version(p.id, SAMPLE_YAML, b"ss://test@1.2.3.4:443#test")
+        vs.store_version(p.id, p.name, SAMPLE_YAML, b"ss://test@1.2.3.4:443#test")
         p.last_success_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
         db.session.commit()
     resp = client.get(f"/subscriptions/{token}")
@@ -120,7 +120,7 @@ def test_subscription_head(app):
         token = p.public_token
         from app.services.version_store import VersionStore
         vs = VersionStore(app.config["SUBSCRIPTIONS_DIR"], 5)
-        vs.store_version(p.id, SAMPLE_YAML, b"ss://test@1.2.3.4:443#test")
+        vs.store_version(p.id, p.name, SAMPLE_YAML, b"ss://test@1.2.3.4:443#test")
         p.last_success_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
         db.session.commit()
     resp = client.head(f"/subscriptions/{token}")

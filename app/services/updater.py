@@ -29,6 +29,23 @@ def _get_provider_lock(provider_id):
         return _provider_locks[provider_id]
 
 
+def _emit_log(app, event_type, fields):
+    """Forward one event to the local JSONL log + rsyslog sink."""
+    log_store = app.extensions.get("log_store") if hasattr(app, "extensions") else None
+    log_sink = app.extensions.get("log_sink") if hasattr(app, "extensions") else None
+    payload = {**fields, "event": event_type}
+    if log_store is not None:
+        try:
+            log_store.append(payload)
+        except Exception:  # pragma: no cover - log store must not break refresh
+            logger.exception("log_store.append failed")
+    if log_sink is not None:
+        try:
+            log_sink.emit(event_type, **payload)
+        except Exception:  # pragma: no cover
+            logger.exception("log_sink.emit failed")
+
+
 class RefreshOrchestrator:
     def __init__(self, app):
         self.app = app
@@ -75,6 +92,14 @@ class RefreshOrchestrator:
                 "created_at": now.isoformat(),
                 "completed_at": None,
             })
+            _emit_log(self.app, "refresh.querying", {
+                "run_id": run_id,
+                "provider_id": provider_id,
+                "provider_name": provider.name,
+                "trigger": trigger,
+                "status": "running",
+                "message": "Fetching from provider",
+            })
 
             try:
                 update_run_stage(run, "querying", "Fetching from provider")
@@ -95,6 +120,14 @@ class RefreshOrchestrator:
                     "status": "running",
                     "created_at": now.isoformat(),
                     "completed_at": None,
+                })
+                _emit_log(self.app, "refresh.received", {
+                    "run_id": run_id,
+                    "provider_id": provider_id,
+                    "provider_name": provider.name,
+                    "trigger": trigger,
+                    "status": "running",
+                    "message": f"Got {len(fetch_result.content)} bytes",
                 })
 
                 update_run_stage(run, "received", f"Got {len(fetch_result.content)} bytes")
@@ -118,6 +151,14 @@ class RefreshOrchestrator:
                         "created_at": now.isoformat(),
                         "completed_at": datetime.now(timezone.utc).isoformat(),
                     })
+                    _emit_log(self.app, "refresh.unchanged", {
+                        "run_id": run_id,
+                        "provider_id": provider_id,
+                        "provider_name": provider.name,
+                        "trigger": trigger,
+                        "status": "success",
+                        "message": "Content unchanged",
+                    })
                     complete_update_run(run, "success", "Content unchanged")
                     return run_id
 
@@ -131,6 +172,14 @@ class RefreshOrchestrator:
                     "status": "running",
                     "created_at": now.isoformat(),
                     "completed_at": None,
+                })
+                _emit_log(self.app, "refresh.converting", {
+                    "run_id": run_id,
+                    "provider_id": provider_id,
+                    "provider_name": provider.name,
+                    "trigger": trigger,
+                    "status": "running",
+                    "message": "Converting to share links",
                 })
 
                 update_run_stage(run, "converting", "Converting to share links")
@@ -149,10 +198,19 @@ class RefreshOrchestrator:
                     "created_at": now.isoformat(),
                     "completed_at": None,
                 })
+                _emit_log(self.app, "refresh.storing", {
+                    "run_id": run_id,
+                    "provider_id": provider_id,
+                    "provider_name": provider.name,
+                    "trigger": trigger,
+                    "status": "running",
+                    "message": f"Storing {conversion.proxy_count} nodes",
+                })
 
                 update_run_stage(run, "storing", f"Storing {conversion.proxy_count} nodes")
                 self.version_store.store_version(
                     provider_id=provider_id,
+                    provider_name=provider.name,
                     raw_bytes=fetch_result.content,
                     converted_bytes="\n".join(conversion.links).encode("utf-8"),
                 )
@@ -180,6 +238,14 @@ class RefreshOrchestrator:
                     "created_at": now.isoformat(),
                     "completed_at": datetime.now(timezone.utc).isoformat(),
                 })
+                _emit_log(self.app, "refresh.success", {
+                    "run_id": run_id,
+                    "provider_id": provider_id,
+                    "provider_name": provider.name,
+                    "trigger": trigger,
+                    "status": "success",
+                    "message": f"Converted {conversion.proxy_count} nodes",
+                })
 
                 return run_id
 
@@ -199,6 +265,14 @@ class RefreshOrchestrator:
                     "status": "failure",
                     "created_at": now.isoformat(),
                     "completed_at": datetime.now(timezone.utc).isoformat(),
+                })
+                _emit_log(self.app, "refresh.failure", {
+                    "run_id": run_id,
+                    "provider_id": provider_id,
+                    "provider_name": provider.name,
+                    "trigger": trigger,
+                    "status": "failure",
+                    "message": str(e),
                 })
                 return run_id
 

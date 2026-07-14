@@ -411,3 +411,42 @@ test("reveal state is pruned when a provider is deleted", async () => {
     "newly-created provider starts masked (no stale reveal state)");
   assert.equal(newMask.textContent, "••••••••");
 });
+
+test("settings form starts read-only and toggles via the Edit / Cancel buttons", async () => {
+  // Wait for `loadSettings()` to populate the form so we have known values.
+  await new Promise((resolve) => dom.window.setTimeout(resolve, 10));
+  // Default view: all inputs disabled, Edit visible, Save/Cancel hidden.
+  const inputIds = ["#settings-host", "#settings-port", "#settings-proto", "#settings-facility", "#settings-retention"];
+  for (const id of inputIds) {
+    const el = dom.window.document.querySelector(id);
+    assert.equal(el.disabled, true, `${id} should be disabled in view mode`);
+  }
+  const editBtn = dom.window.document.querySelector("#settings-edit");
+  const saveBtn = dom.window.document.querySelector("#settings-save");
+  const cancelBtn = dom.window.document.querySelector("#settings-cancel");
+  assert.equal(editBtn.hidden, false, "Edit button visible in view mode");
+  assert.equal(saveBtn.hidden, true, "Save button hidden in view mode");
+  assert.equal(cancelBtn.hidden, true, "Cancel button hidden in view mode");
+
+  // User starts editing: snapshot current host (whatever /api/settings returns).
+  const originalHost = dom.window.document.querySelector("#settings-host").value;
+  click(editBtn);
+  for (const id of inputIds) {
+    const el = dom.window.document.querySelector(id);
+    assert.equal(el.disabled, false, `${id} should be enabled after Edit`);
+  }
+  assert.equal(editBtn.hidden, true, "Edit hidden after entering edit mode");
+  assert.equal(saveBtn.hidden, false, "Save visible in edit mode");
+  assert.equal(cancelBtn.hidden, false, "Cancel visible in edit mode");
+
+  // Make a change then cancel — value should revert to the snapshot.
+  const hostInput = dom.window.document.querySelector("#settings-host");
+  hostInput.value = "accidental-typo.example.com";
+  click(cancelBtn);
+  assert.equal(hostInput.value, originalHost, "Cancel restored the original value");
+  for (const id of inputIds) {
+    const el = dom.window.document.querySelector(id);
+    assert.equal(el.disabled, true, `${id} re-disabled after Cancel`);
+  }
+  assert.equal(editBtn.hidden, false, "Edit visible again after Cancel");
+});
