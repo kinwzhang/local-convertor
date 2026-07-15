@@ -116,6 +116,20 @@ class LogStore:
         _atomic_write_text(path, "".join(kept_lines))
         return removed
 
+    # ---- export --------------------------------------------------------
+    def export_text(self):
+        """Return the full log as newline-delimited JSON (oldest-first, exactly
+        as stored on disk). Empty string when no log file exists yet.
+
+        Used by the management UI's "Export logs" button to download the whole
+        retained history in one file.
+        """
+        path = self._path()
+        if not os.path.exists(path):
+            return ""
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+
     # ---- manual clear --------------------------------------------------
     def clear(self):
         """Truncate the file. Returns the number of lines removed."""

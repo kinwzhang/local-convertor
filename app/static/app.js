@@ -486,6 +486,18 @@
         }
     }
 
+    function exportLogs() {
+        // The endpoint returns the file with a Content-Disposition attachment
+        // header, so a plain navigation via a temporary anchor triggers the
+        // browser download without leaving the page.
+        const a = document.createElement("a");
+        a.href = "/api/logs/export";
+        a.download = "";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
+
     async function clearLogs() {
         const btn = $("#log-clear");
         if (!btn) return;
@@ -771,6 +783,8 @@
         $("#new-save").addEventListener("click", createProvider);
         const clearBtn = $("#log-clear");
         if (clearBtn) clearBtn.addEventListener("click", clearLogs);
+        const exportBtn = $("#log-export");
+        if (exportBtn) exportBtn.addEventListener("click", exportLogs);
         const settingsSave = $("#settings-save");
         if (settingsSave) settingsSave.addEventListener("click", saveSettings);
         const settingsEdit = $("#settings-edit");

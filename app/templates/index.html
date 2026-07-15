@@ -7,13 +7,26 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
 </head>
 <body>
-    <header>
-        <h1>Local Clash Subscription Converter</h1>
-        <p class="subtitle">Manage providers, schedules, and live update logs.</p>
+    <header class="app-bar">
+        <div class="brand">
+            <span class="brand-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2 3 7v10l9 5 9-5V7z"></path>
+                    <path d="M12 22V12"></path>
+                    <path d="M3 7l9 5 9-5"></path>
+                </svg>
+            </span>
+            <div class="brand-text">
+                <h1>Local Clash Subscription Converter</h1>
+                <p class="subtitle">Manage providers, schedules, and live update logs.</p>
+            </div>
+        </div>
+        <span class="env-chip"><span class="env-dot"></span>LAN · single-user</span>
     </header>
     <main>
-        <section id="provider-section">
+        <section id="provider-section" class="card">
             <h2>Providers</h2>
+            <div class="table-wrap">
             <table id="provider-table">
                 <thead>
                     <tr>
@@ -70,19 +83,21 @@
                     </tr>
                 </tfoot>
             </table>
+            </div>
             <p id="form-error" class="error" hidden></p>
         </section>
 
-        <section id="log-section">
+        <section id="log-section" class="card">
             <h2>Live Update Log</h2>
             <div class="log-header">
                 <span id="log-status" class="muted">Connecting…</span>
+                <button id="log-export" type="button" class="section-button">Export logs</button>
                 <button id="log-clear" type="button" class="section-button">Clear logs</button>
             </div>
             <pre id="log-box" aria-live="polite"></pre>
         </section>
 
-        <section id="settings-section">
+        <section id="settings-section" class="card">
             <h2>Log forwarding</h2>
             <p class="muted">Ship every refresh and subscription-query event to a remote rsyslog server. Leave the host blank to disable shipping.</p>
             <div class="settings-grid">
