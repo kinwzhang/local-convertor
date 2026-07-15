@@ -230,6 +230,21 @@ def api_clear_logs():
     return jsonify(cleared=cleared)
 
 
+@bp.route("/logs/export", methods=["GET"])
+def api_export_logs():
+    """Download the full retained log history as a JSONL file attachment."""
+    log_store = current_app.extensions.get("log_store") if hasattr(current_app, "extensions") else None
+    text = log_store.export_text() if log_store is not None else ""
+    from datetime import datetime, timezone
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    filename = f"converter-logs-{stamp}.jsonl"
+    resp = Response(text, mimetype="application/x-ndjson")
+    resp.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+
 def _rebuild_log_sink(app):
     """Build a fresh LogSink from the live settings row and replace it."""
     from app.services.log_sink import LogSink

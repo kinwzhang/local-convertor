@@ -1,15 +1,15 @@
 services:
   converter:
-    build: .
+    image: zwj808/clash-local-converter:latest
+    container_name: clash-local-converter
     ports:
-      - "5000:5000"
+      - "21301:5000"
     volumes:
       - app-data:/data
     environment:
       - SECRET_KEY=change-me-in-production
       - DATA_DIR=/data
-      - PUBLIC_BASE_URL=http://localhost:5000
-      - TIMEZONE=Asia/Hong_Kong
+      - TIMEZONE=Asia/Singapore
     restart: unless-stopped
 
 volumes:
